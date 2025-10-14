@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("EventScheduler.Infrastructure")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1975fc29dbb2f049de939bcc842f91b41caff3a8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c3aaf7020c02f18a8206775946d81894354803e3")]
 [assembly: System.Reflection.AssemblyProductAttribute("EventScheduler.Infrastructure")]
 [assembly: System.Reflection.AssemblyTitleAttribute("EventScheduler.Infrastructure")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
