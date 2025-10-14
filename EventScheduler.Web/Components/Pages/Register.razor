@@ -1,0 +1,106 @@
+@page "/register"
+@using EventScheduler.Application.DTOs.Request
+@using EventScheduler.Web.Services
+@inject ApiService ApiService
+@inject AuthStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Register - Event Scheduler</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Create Account</h3>
+                    
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            @errorMessage
+                        </div>
+                    }
+
+                    <EditForm Model="@registerRequest" OnValidSubmit="@HandleRegister">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="mb-3">
+                            <label for="fullname" class="form-label">Full Name</label>
+                            <InputText id="fullname" class="form-control" @bind-Value="registerRequest.FullName" />
+                            <ValidationMessage For="@(() => registerRequest.FullName)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <InputText id="username" class="form-control" @bind-Value="registerRequest.Username" />
+                            <ValidationMessage For="@(() => registerRequest.Username)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <InputText id="email" type="email" class="form-control" @bind-Value="registerRequest.Email" />
+                            <ValidationMessage For="@(() => registerRequest.Email)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <InputText id="password" type="password" class="form-control" @bind-Value="registerRequest.Password" />
+                            <small class="form-text text-muted">
+                                Password must be at least 8 characters long
+                            </small>
+                            <ValidationMessage For="@(() => registerRequest.Password)" />
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                Register
+                            </button>
+                        </div>
+                    </EditForm>
+
+                    <hr class="my-4" />
+
+                    <div class="text-center">
+                        <p class="mb-0">Already have an account? <a href="/login">Login here</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest registerRequest = new() { Username = "", Email = "", Password = "", FullName = "" };
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    private async Task HandleRegister()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var response = await ApiService.RegisterAsync(registerRequest);
+            
+            if (response != null)
+            {
+                AuthStateProvider.SetAuthentication(response.Username, response.Email, response.UserId, response.Token);
+                ApiService.SetToken(response.Token);
+                NavigationManager.NavigateTo("/calendar");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Registration failed. Username or email may already exist.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

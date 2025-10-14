@@ -1,0 +1,149 @@
+using EventScheduler.Application.DTOs.Request;
+using EventScheduler.Application.DTOs.Response;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+
+namespace EventScheduler.Web.Services;
+
+public class ApiService
+{
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<ApiService> _logger;
+    private string? _token;
+
+    public ApiService(HttpClient httpClient, ILogger<ApiService> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
+
+    public void SetToken(string token)
+    {
+        _token = token;
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    public void ClearToken()
+    {
+        _token = null;
+        _httpClient.DefaultRequestHeaders.Authorization = null;
+    }
+
+    // Auth endpoints
+    public async Task<LoginResponse?> RegisterAsync(RegisterRequest request)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/auth/register", request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<LoginResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during registration");
+            throw;
+        }
+    }
+
+    public async Task<LoginResponse?> LoginAsync(LoginRequest request)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/auth/login", request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<LoginResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during login");
+            throw;
+        }
+    }
+
+    // Event endpoints
+    public async Task<List<EventResponse>> GetAllEventsAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<EventResponse>>("/api/events") ?? new List<EventResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting events");
+            throw;
+        }
+    }
+
+    public async Task<EventResponse?> GetEventByIdAsync(int id)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<EventResponse>($"/api/events/{id}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting event {EventId}", id);
+            throw;
+        }
+    }
+
+    public async Task<List<EventResponse>> GetEventsByDateRangeAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<EventResponse>>(
+                $"/api/events/date-range?startDate={startDate:yyyy-MM-dd}&endDate={endDate:yyyy-MM-dd}") 
+                ?? new List<EventResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting events by date range");
+            throw;
+        }
+    }
+
+    public async Task<EventResponse?> CreateEventAsync(CreateEventRequest request)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/events", request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<EventResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating event");
+            throw;
+        }
+    }
+
+    public async Task<EventResponse?> UpdateEventAsync(int id, UpdateEventRequest request)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/events/{id}", request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<EventResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating event {EventId}", id);
+            throw;
+        }
+    }
+
+    public async Task DeleteEventAsync(int id)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"/api/events/{id}");
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting event {EventId}", id);
+            throw;
+        }
+    }
+}
