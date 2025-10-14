@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("EventScheduler.Web")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c3aaf7020c02f18a8206775946d81894354803e3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3e82d6bdbd8fb34c184337aea0134f1f782ae9d8")]
 [assembly: System.Reflection.AssemblyProductAttribute("EventScheduler.Web")]
 [assembly: System.Reflection.AssemblyTitleAttribute("EventScheduler.Web")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
