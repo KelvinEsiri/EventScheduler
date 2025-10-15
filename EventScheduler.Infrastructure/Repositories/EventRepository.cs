@@ -34,7 +34,9 @@ public class EventRepository : IEventRepository
     {
         return await _context.Events
             .Include(e => e.Category)
-            .Where(e => e.UserId == userId && e.StartDate >= startDate && e.StartDate <= endDate)
+            .Where(e => e.UserId == userId &&
+                       e.StartDate >= startDate &&
+                       e.StartDate <= endDate)
             .OrderBy(e => e.StartDate)
             .ToListAsync();
     }
@@ -55,6 +57,7 @@ public class EventRepository : IEventRepository
     public async Task DeleteAsync(int id, int userId)
     {
         var eventEntity = await GetByIdAsync(id, userId);
+        
         if (eventEntity != null)
         {
             _context.Events.Remove(eventEntity);

@@ -1,25 +1,32 @@
 @echo off
-REM Event Scheduler - Run All Services
-REM This script starts both the API and Web application
+REM EventScheduler - Startup Script
+REM Starts both API and Web application
 
-echo Starting Event Scheduler...
+echo ========================================
+echo   EventScheduler - Starting Services
+echo ========================================
 echo.
 
 REM Start API
-echo Starting API on http://localhost:5006...
-start "Event Scheduler API" dotnet run --project EventScheduler.Api\EventScheduler.Api.csproj --no-launch-profile --urls="http://localhost:5006"
+echo [1/2] Starting API...
+start "EventScheduler API" cmd /k "cd EventScheduler.Api && dotnet run"
 
-REM Wait a bit for API to start
-timeout /t 5 /nobreak
+REM Wait for API to initialize
+echo       Waiting for API to start...
+timeout /t 8 /nobreak > nul
 
 REM Start Web application
 echo.
-echo Starting Web App on http://localhost:5292...
-start "Event Scheduler Web" dotnet run --project EventScheduler.Web\EventScheduler.Web.csproj
+echo [2/2] Starting Web App...
+start "EventScheduler Web" cmd /k "cd EventScheduler.Web && dotnet run"
 
 echo.
-echo Both services are starting...
-echo API: http://localhost:5006
-echo Web: http://localhost:5292
+echo ========================================
+echo   Services Starting:
+echo   - API:  http://localhost:5005
+echo   - Web:  http://localhost:5292
+echo ========================================
 echo.
-pause
+echo Press any key to close this window...
+echo (Keep the other windows open)
+pause > nul

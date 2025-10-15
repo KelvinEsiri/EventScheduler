@@ -17,15 +17,6 @@
                 <div class="card-body">
                     <h3 class="card-title text-center mb-4">Login to Event Scheduler</h3>
                     
-                    @if (!string.IsNullOrEmpty(successMessage))
-                    {
-                        <div class="alert alert-success" role="alert">
-                            <strong>@successMessage</strong>
-                            <br />
-                            <a href="/calendar" class="btn btn-primary mt-2">Go to Calendar</a>
-                        </div>
-                    }
-                    
                     @if (!string.IsNullOrEmpty(errorMessage))
                     {
                         <div class="alert alert-danger" role="alert">
@@ -75,7 +66,6 @@
     private LoginRequest loginRequest { get; set; } = new() { Username = "", Password = "" };
     
     private string? errorMessage;
-    private string? successMessage;
     private bool isLoading = false;
     private bool shouldRedirect = false;
     private string? authUsername;
@@ -102,8 +92,8 @@
                 
                 Logger.LogInformation("Auth data stored, now navigating");
                 
-                // Navigate using JavaScript
-                await JSRuntime.InvokeVoidAsync("eval", "window.location.href = '/calendar';");
+                // Navigate to interactive calendar view
+                await JSRuntime.InvokeVoidAsync("eval", "window.location.href = '/calendar-view';");
                 
                 Logger.LogInformation("Navigation command sent");
             }
@@ -143,9 +133,6 @@
                 // Set in memory for immediate use
                 AuthStateProvider.SetAuthentication(response.Username, response.Email, response.UserId, response.Token);
                 ApiService.SetToken(response.Token);
-                
-                // Show success message to trigger render
-                successMessage = $"Login successful! Redirecting...";
                 
                 // Set flag to redirect in OnAfterRenderAsync
                 shouldRedirect = true;

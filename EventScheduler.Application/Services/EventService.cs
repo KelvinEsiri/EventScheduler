@@ -21,6 +21,11 @@ public class EventService : IEventService
 
     public async Task<EventResponse> CreateEventAsync(int userId, CreateEventRequest request)
     {
+        if (request.EndDate < request.StartDate)
+        {
+            throw new InvalidOperationException("End date cannot be before start date");
+        }
+
         var eventEntity = new Event
         {
             Title = request.Title,
@@ -29,7 +34,7 @@ public class EventService : IEventService
             EndDate = request.EndDate,
             Location = request.Location,
             IsAllDay = request.IsAllDay,
-            Color = request.Color,
+            Color = request.Color ?? "#007bff",
             CategoryId = request.CategoryId,
             UserId = userId,
             Status = EventStatus.Scheduled,
@@ -47,7 +52,12 @@ public class EventService : IEventService
         
         if (eventEntity == null)
         {
-            throw new InvalidOperationException("Event not found");
+            throw new InvalidOperationException("Event not found or you don't have permission to edit it");
+        }
+
+        if (request.EndDate < request.StartDate)
+        {
+            throw new InvalidOperationException("End date cannot be before start date");
         }
 
         eventEntity.Title = request.Title;
@@ -56,7 +66,7 @@ public class EventService : IEventService
         eventEntity.EndDate = request.EndDate;
         eventEntity.Location = request.Location;
         eventEntity.IsAllDay = request.IsAllDay;
-        eventEntity.Color = request.Color;
+        eventEntity.Color = request.Color ?? eventEntity.Color;
         eventEntity.CategoryId = request.CategoryId;
         eventEntity.UpdatedAt = DateTime.UtcNow;
 
@@ -65,7 +75,6 @@ public class EventService : IEventService
             var oldStatus = eventEntity.Status;
             eventEntity.Status = status;
 
-            // Send email notification if event is marked as completed
             if (status == EventStatus.Completed && oldStatus != EventStatus.Completed)
             {
                 var user = await _userRepository.GetByIdAsync(userId);

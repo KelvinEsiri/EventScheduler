@@ -92,7 +92,7 @@
             {
                 AuthStateProvider.SetAuthentication(response.Username, response.Email, response.UserId, response.Token);
                 ApiService.SetToken(response.Token);
-                NavigationManager.NavigateTo("/calendar");
+                NavigationManager.NavigateTo("/calendar-list");
             }
         }
         catch (Exception)

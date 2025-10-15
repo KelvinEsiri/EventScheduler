@@ -14,10 +14,11 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        AuthStateProvider.ClearAuthentication();
+        await AuthStateProvider.ClearAuthentication();
         ApiService.ClearToken();
+        await Task.Delay(500); // Brief delay for better UX
         NavigationManager.NavigateTo("/login");
     }
 }

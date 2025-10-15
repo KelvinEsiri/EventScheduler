@@ -1,30 +1,44 @@
 #!/bin/bash
 
-# Event Scheduler - Run All Services
-# This script starts both the API and Web application
+# EventScheduler - Startup Script
+# Starts both API and Web application
 
-echo "Starting Event Scheduler..."
+echo "========================================"
+echo "  EventScheduler - Starting Services"
+echo "========================================"
 echo ""
 
 # Start API in background
-echo "Starting API on http://localhost:5001..."
+echo "[1/2] Starting API..."
 cd EventScheduler.Api
-dotnet run --urls="http://localhost:5001" &
+dotnet run &
 API_PID=$!
 cd ..
 
-# Wait for API to start
-sleep 5
+# Wait for API to initialize
+echo "      Waiting for API to start..."
+sleep 8
 
-# Start Web application
+# Start Web application in background
 echo ""
-echo "Starting Web App on http://localhost:5070..."
+echo "[2/2] Starting Web App..."
 cd EventScheduler.Web
-dotnet run --urls="http://localhost:5070"
+dotnet run &
 WEB_PID=$!
 cd ..
 
-# Cleanup on exit
-trap "kill $API_PID $WEB_PID" EXIT
+echo ""
+echo "========================================"
+echo "  Services Started:"
+echo "  - API:  http://localhost:5005"
+echo "  - Web:  http://localhost:5292"
+echo "========================================"
+echo ""
+echo "Press Ctrl+C to stop all services"
+echo ""
 
+# Cleanup on exit
+trap "echo ''; echo 'Stopping services...'; kill $API_PID $WEB_PID 2>/dev/null; echo 'Services stopped.'; exit" INT TERM
+
+# Wait for processes
 wait

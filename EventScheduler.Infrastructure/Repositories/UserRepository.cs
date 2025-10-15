@@ -9,9 +9,9 @@ public class UserRepository : IUserRepository
 {
     private readonly EventSchedulerDbContext _context;
 
-    public UserRepository(EventSchedulerDbContext context)
+    public UserRepository(EventSchedulerDbContext _context)
     {
-        _context = context;
+        this._context = _context;
     }
 
     public async Task<User?> GetByIdAsync(int id)

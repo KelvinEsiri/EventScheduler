@@ -27,16 +27,13 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse> RegisterAsync(RegisterRequest request)
     {
-        // Validate
         if (await _userRepository.ExistsAsync(request.Username, request.Email))
         {
             throw new InvalidOperationException("Username or email already exists");
         }
 
-        // Hash password
         var passwordHash = HashPassword(request.Password);
 
-        // Create user
         var user = new User
         {
             Username = request.Username,
@@ -49,10 +46,8 @@ public class AuthService : IAuthService
 
         var createdUser = await _userRepository.CreateAsync(user);
 
-        // Send welcome email
         await _emailService.SendWelcomeEmailAsync(createdUser.Email, createdUser.FullName);
 
-        // Generate token
         var token = GenerateJwtToken(createdUser.Id, createdUser.Username, createdUser.Email);
 
         return new LoginResponse
@@ -74,7 +69,6 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid username or password");
         }
 
-        // Update last login
         user.LastLoginAt = DateTime.UtcNow;
         await _userRepository.UpdateAsync(user);
 
@@ -98,7 +92,6 @@ public class AuthService : IAuthService
             return false;
         }
 
-        // Generate reset token
         var resetToken = GenerateResetToken();
         user.PasswordResetToken = resetToken;
         user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
@@ -171,6 +164,7 @@ public class AuthService : IAuthService
     private bool VerifyPassword(string password, string hashedPassword)
     {
         byte[] hashBytes = Convert.FromBase64String(hashedPassword);
+        
         byte[] salt = new byte[16];
         Array.Copy(hashBytes, 0, salt, 0, 16);
 

@@ -24,6 +24,6 @@ window.authHelper = {
     },
     
     navigateToCalendar: function () {
-        window.location.href = '/calendar';
+        window.location.href = '/calendar-view';
     }
 };

@@ -12,12 +12,33 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
+// Configure Serilog with detailed logging
 Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("System", Serilog.Events.LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "EventScheduler.API")
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: "logs/eventscheduler-api-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14,
+        fileSizeLimitBytes: 10_000_000,
+        rollOnFileSizeLimit: true,
+        shared: true,
+        flushToDiskInterval: TimeSpan.FromSeconds(2),
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
-builder.Host.UseSerilog();
+try
+{
+    Log.Information("========================================");
+    Log.Information("Starting EventScheduler API");
+    Log.Information("========================================");
+
+    builder.Host.UseSerilog();
 
 // Add services to the container
 builder.Services.AddControllers();
@@ -103,22 +124,33 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<EventSchedulerDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         
-        logger.LogInformation("Applying database migrations...");
+        Log.Information("Applying database migrations...");
         db.Database.Migrate();
-        logger.LogInformation("Database migrations applied successfully!");
+        Log.Information("Database migrations applied successfully!");
         
         var userCount = db.Users.Count();
-        logger.LogInformation($"Database ready. Current users: {userCount}");
+        var eventCount = db.Events.Count();
+        Log.Information("Database ready - Users: {UserCount}, Events: {EventCount}", userCount, eventCount);
     }
 }
 catch (Exception ex)
 {
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogError(ex, "An error occurred while migrating the database.");
+    Log.Fatal(ex, "Database migration failed!");
     throw;
 }
 
-Console.WriteLine("Starting EventScheduler API on http://localhost:5005");
+Log.Information("EventScheduler API listening on http://localhost:5005");
+Log.Information("API is ready to accept requests");
+
 app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.Information("Shutting down EventScheduler API");
+    Log.CloseAndFlush();
+}

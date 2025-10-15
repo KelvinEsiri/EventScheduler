@@ -1,286 +1,569 @@
-# NasosoTax - Architecture Documentation
+# EventScheduler - Architecture Documentation# NasosoTax - Architecture Documentation
 
-**Project:** NasosoTax - Tax Management Portal  
+
+
+## Overview**Project:** NasosoTax - Tax Management Portal  
+
 **Last Updated:** October 2025  
-**Architecture Style:** Clean Architecture with Separation of Concerns
 
----
+EventScheduler is a full-stack event management application built with .NET 9.0, following **Clean Architecture** principles. The application separates concerns into distinct layers, ensuring maintainability, testability, and scalability.**Architecture Style:** Clean Architecture with Separation of Concerns
 
-## Table of Contents
 
-1. [Overview](#overview)
-2. [Architecture Principles](#architecture-principles)
-3. [Project Structure](#project-structure)
-4. [Layer Details](#layer-details)
-5. [Communication Flow](#communication-flow)
-6. [Deployment Architecture](#deployment-architecture)
-7. [Architecture Evolution](#architecture-evolution)
 
----
+## Architecture Pattern---
 
-## Overview
 
-NasosoTax is built using **Clean Architecture** principles with a clear separation between frontend and backend concerns. The application consists of five main projects organized into distinct layers.
 
-### Architecture Rating: ⭐⭐⭐⭐⭐ (5/5)
+**Clean Architecture (Onion Architecture)** with the following layers:## Table of Contents
 
-**Strengths:**
-- ✅ Perfect implementation of Clean Architecture
-- ✅ Clear separation of concerns
-- ✅ Proper dependency direction
-- ✅ Frontend and backend completely separated
-- ✅ Easy to test, scale, and maintain
-- ✅ Industry best practices
 
----
 
-## Architecture Principles
+```1. [Overview](#overview)
 
-### 1. Separation of Concerns
-Each layer has a single, well-defined responsibility:
+┌─────────────────────────────────────────────────┐2. [Architecture Principles](#architecture-principles)
+
+│  Presentation Layer                             │3. [Project Structure](#project-structure)
+
+│  - EventScheduler.Web (Blazor Server)           │4. [Layer Details](#layer-details)
+
+│  - EventScheduler.Api (REST API)                │5. [Communication Flow](#communication-flow)
+
+└──────────────┬──────────────────────────────────┘6. [Deployment Architecture](#deployment-architecture)
+
+               │7. [Architecture Evolution](#architecture-evolution)
+
+┌──────────────▼──────────────────────────────────┐
+
+│  Application Layer                              │---
+
+│  - EventScheduler.Application                   │
+
+│  - Business Logic, Services, DTOs               │## Overview
+
+└──────────────┬──────────────────────────────────┘
+
+               │NasosoTax is built using **Clean Architecture** principles with a clear separation between frontend and backend concerns. The application consists of five main projects organized into distinct layers.
+
+┌──────────────▼──────────────────────────────────┐
+
+│  Infrastructure Layer                           │### Architecture Rating: ⭐⭐⭐⭐⭐ (5/5)
+
+│  - EventScheduler.Infrastructure                │
+
+│  - Data Access, Repositories, EF Core           │**Strengths:**
+
+└──────────────┬──────────────────────────────────┘- ✅ Perfect implementation of Clean Architecture
+
+               │- ✅ Clear separation of concerns
+
+┌──────────────▼──────────────────────────────────┐- ✅ Proper dependency direction
+
+│  Domain Layer                                   │- ✅ Frontend and backend completely separated
+
+│  - EventScheduler.Domain                        │- ✅ Easy to test, scale, and maintain
+
+│  - Core Entities, Business Rules                │- ✅ Industry best practices
+
+└─────────────────────────────────────────────────┘
+
+```---
+
+
+
+## Project Structure## Architecture Principles
+
+
+
+### 1. EventScheduler.Domain### 1. Separation of Concerns
+
+**Core business entities** - No external dependenciesEach layer has a single, well-defined responsibility:
+
 - **Domain**: Business entities and models
-- **Application**: Business logic and interfaces
-- **Infrastructure**: Data access and external services
-- **API**: Backend web services
-- **Web**: Frontend user interface
 
-### 2. Dependency Inversion
+- **Entities/**- **Application**: Business logic and interfaces
+
+  - `User.cs` - User account entity- **Infrastructure**: Data access and external services
+
+  - `Event.cs` - Event entity with scheduling details- **API**: Backend web services
+
+  - `EventCategory.cs` - Event categorization- **Web**: Frontend user interface
+
+- **Enums**
+
+  - `EventStatus` - Event lifecycle states (Scheduled, InProgress, Completed, Cancelled)### 2. Dependency Inversion
+
 Dependencies flow inward toward the domain:
-```
-Web/Api → Application → Domain
+
+### 2. EventScheduler.Application```
+
+**Business logic and service interfaces**Web/Api → Application → Domain
+
               ↑
-      Infrastructure
-```
 
-### 3. Technology Independence
-- Core business logic is independent of frameworks
-- Can swap UI, database, or external services easily
-- Business rules remain stable
+- **Services/** - Service implementations      Infrastructure
 
-### 4. Testability
-- Each layer can be tested independently
-- Easy to mock dependencies
+  - `AuthService.cs` - Authentication logic```
+
+  - `EventService.cs` - Event management logic
+
+  - `EmailService.cs` - Email notification logic### 3. Technology Independence
+
+  - Core business logic is independent of frameworks
+
+- **Interfaces/**- Can swap UI, database, or external services easily
+
+  - `IAuthService` - Authentication interface- Business rules remain stable
+
+  - `IEventService` - Event management interface
+
+  - `IEmailService` - Email service interface### 4. Testability
+
+  - `IUserRepository` - User data access interface- Each layer can be tested independently
+
+  - `IEventRepository` - Event data access interface- Easy to mock dependencies
+
 - Clear boundaries for unit and integration tests
 
----
+- **DTOs/** - Data Transfer Objects
+
+  - Request DTOs (LoginRequest, RegisterRequest, CreateEventRequest, etc.)---
+
+  - Response DTOs (LoginResponse, EventResponse, etc.)
 
 ## Project Structure
 
-```
-NasosoTax/
-├── NasosoTax.Domain/          # Core business entities and models
-│   ├── Entities/              # Domain entities
-│   │   ├── User.cs
-│   │   ├── TaxRecord.cs
-│   │   ├── IncomeSource.cs
-│   │   ├── Deduction.cs
-│   │   ├── GeneralLedger.cs
-│   │   └── MonthlyIncome.cs
-│   └── Models/                # Domain models
-│       ├── TaxBracket.cs
-│       └── TaxCalculationResult.cs
-│
-├── NasosoTax.Application/     # Business logic and contracts
-│   ├── DTOs/                  # Data Transfer Objects
-│   │   ├── Request/           # API request models
-│   │   └── Response/          # API response models
-│   ├── Interfaces/            # Service and repository contracts
-│   │   ├── Services/
-│   │   └── Repositories/
-│   └── Services/              # Business logic implementations
-│       ├── TaxCalculationService.cs
-│       ├── AuthService.cs
-│       ├── ReportsService.cs
-│       └── ValidationHelper.cs
-│
-├── NasosoTax.Infrastructure/  # External concerns and data access
-│   ├── Data/                  # Database context
-│   │   └── TaxDbContext.cs
-│   ├── Repositories/          # Repository implementations
-│   │   ├── UserRepository.cs
-│   │   ├── TaxRecordRepository.cs
-│   │   └── GeneralLedgerRepository.cs
-│   └── Migrations/            # EF Core migrations
-│
-├── NasosoTax.Api/             # Backend REST API (Port 5001)
-│   ├── Controllers/           # API endpoints
-│   │   ├── AuthController.cs
-│   │   ├── TaxController.cs
-│   │   ├── LedgerController.cs
-│   │   ├── ReportsController.cs
-│   │   └── HealthController.cs
-│   ├── Middleware/            # Request pipeline middleware
-│   │   └── ErrorHandlingMiddleware.cs
-│   ├── appsettings.json       # API configuration
-│   └── Program.cs             # API startup
-│
-└── NasosoTax.Web/             # Frontend Blazor App (Port 5070)
-    ├── Components/            # Blazor components
-    │   ├── Pages/             # Page components
-    │   │   ├── Home.razor
-    │   │   ├── Calculator.razor
-    │   │   ├── Login.razor
-    │   │   ├── Register.razor
-    │   │   ├── SubmitIncome.razor
-    │   │   ├── Reports.razor
-    │   │   └── Ledger.razor
-    │   └── Layout/            # Layout components
-    │       ├── MainLayout.razor
-    │       └── NavMenu.razor
-    ├── Services/              # Frontend services
-    │   ├── ApiService.cs      # HTTP client wrapper
-    │   ├── AuthStateProvider.cs
-    │   └── AuthStateCache.cs
-    ├── appsettings.json       # Web configuration
-    └── Program.cs             # Web startup
-```
+### 3. EventScheduler.Infrastructure
 
----
+**Data access and external services**```
+
+NasosoTax/
+
+- **Data/**├── NasosoTax.Domain/          # Core business entities and models
+
+  - `EventSchedulerDbContext.cs` - EF Core database context│   ├── Entities/              # Domain entities
+
+  │   │   ├── User.cs
+
+- **Repositories/**│   │   ├── TaxRecord.cs
+
+  - `UserRepository.cs` - User data access implementation│   │   ├── IncomeSource.cs
+
+  - `EventRepository.cs` - Event data access implementation│   │   ├── Deduction.cs
+
+  │   │   ├── GeneralLedger.cs
+
+- **Migrations/** - Entity Framework database migrations│   │   └── MonthlyIncome.cs
+
+│   └── Models/                # Domain models
+
+### 4. EventScheduler.Api│       ├── TaxBracket.cs
+
+**REST API backend** (Port 5005)│       └── TaxCalculationResult.cs
+
+│
+
+- **Controllers/**├── NasosoTax.Application/     # Business logic and contracts
+
+  - `AuthController.cs` - Authentication endpoints│   ├── DTOs/                  # Data Transfer Objects
+
+  - `EventsController.cs` - Event CRUD endpoints│   │   ├── Request/           # API request models
+
+  │   │   └── Response/          # API response models
+
+- **Middleware/**│   ├── Interfaces/            # Service and repository contracts
+
+  - `ErrorHandlingMiddleware.cs` - Global error handling│   │   ├── Services/
+
+  │   │   └── Repositories/
+
+- **Configuration**│   └── Services/              # Business logic implementations
+
+  - JWT authentication│       ├── TaxCalculationService.cs
+
+  - SQL Server database│       ├── AuthService.cs
+
+  - Serilog logging│       ├── ReportsService.cs
+
+  - CORS policy│       └── ValidationHelper.cs
+
+│
+
+### 5. EventScheduler.Web├── NasosoTax.Infrastructure/  # External concerns and data access
+
+**Blazor Server frontend** (Port 5292)│   ├── Data/                  # Database context
+
+│   │   └── TaxDbContext.cs
+
+- **Components/Pages/** - Page components│   ├── Repositories/          # Repository implementations
+
+  - `Home.razor` - Landing page│   │   ├── UserRepository.cs
+
+  - `Register.razor` - User registration│   │   ├── TaxRecordRepository.cs
+
+  - `Login.razor` - User login│   │   └── GeneralLedgerRepository.cs
+
+  - `Calendar.razor` - Event list view│   └── Migrations/            # EF Core migrations
+
+  - `CalendarView.razor` - Calendar grid view│
+
+  - `Logout.razor` - Logout handler├── NasosoTax.Api/             # Backend REST API (Port 5001)
+
+  │   ├── Controllers/           # API endpoints
+
+- **Services/**│   │   ├── AuthController.cs
+
+  - `ApiService.cs` - HTTP client for API communication│   │   ├── TaxController.cs
+
+  - `AuthStateProvider.cs` - Authentication state management│   │   ├── LedgerController.cs
+
+│   │   ├── ReportsController.cs
+
+## Key Design Patterns│   │   └── HealthController.cs
+
+│   ├── Middleware/            # Request pipeline middleware
+
+### Repository Pattern│   │   └── ErrorHandlingMiddleware.cs
+
+Abstracts data access logic from business logic:│   ├── appsettings.json       # API configuration
+
+```csharp│   └── Program.cs             # API startup
+
+public interface IEventRepository│
+
+{└── NasosoTax.Web/             # Frontend Blazor App (Port 5070)
+
+    Task<Event> GetByIdAsync(int id);    ├── Components/            # Blazor components
+
+    Task<IEnumerable<Event>> GetAllByUserIdAsync(int userId);    │   ├── Pages/             # Page components
+
+    Task AddAsync(Event entity);    │   │   ├── Home.razor
+
+    Task UpdateAsync(Event entity);    │   │   ├── Calculator.razor
+
+    Task DeleteAsync(int id);    │   │   ├── Login.razor
+
+}    │   │   ├── Register.razor
+
+```    │   │   ├── SubmitIncome.razor
+
+    │   │   ├── Reports.razor
+
+### Service Layer Pattern    │   │   └── Ledger.razor
+
+Encapsulates business logic:    │   └── Layout/            # Layout components
+
+```csharp    │       ├── MainLayout.razor
+
+public interface IEventService    │       └── NavMenu.razor
+
+{    ├── Services/              # Frontend services
+
+    Task<EventResponse> CreateEventAsync(CreateEventRequest request, int userId);    │   ├── ApiService.cs      # HTTP client wrapper
+
+    Task<IEnumerable<EventResponse>> GetUserEventsAsync(int userId);    │   ├── AuthStateProvider.cs
+
+    Task<bool> UpdateEventAsync(int eventId, UpdateEventRequest request, int userId);    │   └── AuthStateCache.cs
+
+    Task<bool> DeleteEventAsync(int eventId, int userId);    ├── appsettings.json       # Web configuration
+
+}    └── Program.cs             # Web startup
+
+``````
+
+
+
+### Dependency Injection---
+
+All dependencies registered in Program.cs and resolved at runtime.
 
 ## Layer Details
 
+## Data Flow
+
 ### 1. Domain Layer (NasosoTax.Domain) ⭐⭐⭐⭐⭐
 
-**Purpose:** Core business entities and models  
-**Dependencies:** None (pure domain logic)  
-**Rating:** Excellent
+### Authentication Flow
 
-**Key Components:**
+1. User submits credentials (Web)**Purpose:** Core business entities and models  
 
-#### Entities
+2. Request sent to API `/api/auth/login`**Dependencies:** None (pure domain logic)  
+
+3. AuthController calls AuthService**Rating:** Excellent
+
+4. AuthService validates via UserRepository
+
+5. JWT token generated and returned**Key Components:**
+
+6. Token stored in AuthStateProvider
+
+7. Token included in subsequent API requests#### Entities
+
 - **User**: User accounts with authentication
-- **TaxRecord**: Tax filing records per year
-- **IncomeSource**: Income sources with monthly breakdowns
-- **Deduction**: Tax deductions (NHF, NHIS, Pension, etc.)
-- **GeneralLedger**: Financial transaction entries
-- **MonthlyIncome**: Variable monthly income tracking
 
-#### Models
-- **TaxBracket**: Progressive tax bracket definitions
-- **TaxCalculationResult**: Tax calculation results with breakdowns
+### Event Management Flow- **TaxRecord**: Tax filing records per year
 
-**Strengths:**
+1. User creates event (Web)- **IncomeSource**: Income sources with monthly breakdowns
+
+2. Request sent to API `/api/events` with JWT token- **Deduction**: Tax deductions (NHF, NHIS, Pension, etc.)
+
+3. JWT validated by middleware- **GeneralLedger**: Financial transaction entries
+
+4. EventsController calls EventService- **MonthlyIncome**: Variable monthly income tracking
+
+5. EventService validates and processes via EventRepository
+
+6. Changes persisted to database#### Models
+
+7. Response returned to Web- **TaxBracket**: Progressive tax bracket definitions
+
+8. UI updated- **TaxCalculationResult**: Tax calculation results with breakdowns
+
+
+
+## Database Schema**Strengths:**
+
 - ✅ No external dependencies
-- ✅ Clear entity relationships
-- ✅ Well-designed navigation properties
-- ✅ Proper audit fields (CreatedAt, UpdatedAt)
 
----
+### Users Table- ✅ Clear entity relationships
 
-### 2. Application Layer (NasosoTax.Application) ⭐⭐⭐⭐⭐
+- Id (PK)- ✅ Well-designed navigation properties
 
-**Purpose:** Business logic and service contracts  
-**Dependencies:** Domain layer only  
-**Rating:** Excellent
+- Username (Unique)- ✅ Proper audit fields (CreatedAt, UpdatedAt)
 
-**Key Components:**
+- Email (Unique)
 
-#### Services
-- **TaxCalculationService**: Tax computation based on Nigeria Tax Act 2025
-- **AuthService**: Authentication and user management
-- **ReportsService**: Tax report generation
-- **ValidationHelper**: Input validation logic
+- PasswordHash---
 
-#### Interfaces
-- **IUserRepository**: User data access contract
-- **ITaxRecordRepository**: Tax record data access contract
-- **IGeneralLedgerRepository**: Ledger data access contract
+- FullName
 
-#### DTOs
+- CreatedAt### 2. Application Layer (NasosoTax.Application) ⭐⭐⭐⭐⭐
+
+- LastLoginAt
+
+- EmailVerified**Purpose:** Business logic and service contracts  
+
+- PasswordResetToken**Dependencies:** Domain layer only  
+
+- PasswordResetTokenExpiry**Rating:** Excellent
+
+
+
+### Events Table**Key Components:**
+
+- Id (PK)
+
+- Title#### Services
+
+- Description- **TaxCalculationService**: Tax computation based on Nigeria Tax Act 2025
+
+- StartDate- **AuthService**: Authentication and user management
+
+- EndDate- **ReportsService**: Tax report generation
+
+- Location- **ValidationHelper**: Input validation logic
+
+- IsAllDay
+
+- Status (Enum)#### Interfaces
+
+- Color- **IUserRepository**: User data access contract
+
+- UserId (FK → Users)- **ITaxRecordRepository**: Tax record data access contract
+
+- CategoryId (FK → EventCategories, nullable)- **IGeneralLedgerRepository**: Ledger data access contract
+
+- CreatedAt
+
+- UpdatedAt#### DTOs
+
 - **Request DTOs**: LoginRequest, RegisterRequest, TaxSubmissionRequest
-- **Response DTOs**: TaxCalculationResponse, UserReportResponse
 
-**Strengths:**
-- ✅ Pure business logic
-- ✅ Framework-independent
-- ✅ Testable in isolation
-- ✅ Clear service boundaries
+### EventCategories Table- **Response DTOs**: TaxCalculationResponse, UserReportResponse
 
----
+- Id (PK)
 
-### 3. Infrastructure Layer (NasosoTax.Infrastructure) ⭐⭐⭐⭐
+- Name**Strengths:**
 
-**Purpose:** Data access and external service implementations  
-**Dependencies:** Domain, Application layers  
-**Rating:** Very Good
+- Description- ✅ Pure business logic
+
+- Color- ✅ Framework-independent
+
+- UserId (FK → Users)- ✅ Testable in isolation
+
+- CreatedAt- ✅ Clear service boundaries
+
+
+
+## Security Features---
+
+
+
+1. **Password Hashing** - PBKDF2 with 10,000 iterations### 3. Infrastructure Layer (NasosoTax.Infrastructure) ⭐⭐⭐⭐
+
+2. **JWT Authentication** - Token-based stateless auth (8-hour expiration)
+
+3. **Protected Endpoints** - `[Authorize]` attribute on controllers**Purpose:** Data access and external service implementations  
+
+4. **CORS Policy** - Configured for Web app origin**Dependencies:** Domain, Application layers  
+
+5. **SQL Injection Prevention** - Parameterized queries via EF Core**Rating:** Very Good
+
+6. **Error Handling** - Global middleware with safe error messages
 
 **Key Components:**
+
+## Technology Stack
 
 #### Data Context
-- **TaxDbContext**: Entity Framework Core DbContext
-  - SQLite database
-  - Entity configurations
-  - Seed data
-  - Migration support
 
-#### Repositories
+- **.NET 9.0** - Latest framework- **TaxDbContext**: Entity Framework Core DbContext
+
+- **Entity Framework Core 9.0** - ORM for data access  - SQLite database
+
+- **SQL Server LocalDB** - Development database  - Entity configurations
+
+- **Blazor Server** - Interactive web UI  - Seed data
+
+- **JWT Bearer** - Authentication tokens  - Migration support
+
+- **Serilog** - Structured logging
+
+- **Bootstrap 5** - UI framework#### Repositories
+
 - **UserRepository**: User CRUD operations
-- **TaxRecordRepository**: Tax record operations with relationships
+
+## Configuration- **TaxRecordRepository**: Tax record operations with relationships
+
 - **GeneralLedgerRepository**: Ledger entry operations
 
-**Strengths:**
-- ✅ Proper repository pattern
-- ✅ Entity Framework Core best practices
-- ✅ Migration support
-- ✅ Good query optimization
+### API (appsettings.json)
 
-**Recommendations:**
-- ⚠️ Add database indexes for performance
-- ⚠️ Consider soft deletes for audit trails
-- ⚠️ Add more database constraints
+```json**Strengths:**
 
----
+{- ✅ Proper repository pattern
 
-### 4. API Layer (NasosoTax.Api) ⭐⭐⭐⭐⭐
+  "ConnectionStrings": {- ✅ Entity Framework Core best practices
 
-**Purpose:** RESTful backend web API  
-**Dependencies:** Application, Infrastructure layers  
-**Port:** 5001  
-**Rating:** Excellent
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=EventSchedulerDb;..."- ✅ Migration support
 
-**Key Components:**
+  },- ✅ Good query optimization
 
-#### Controllers
+  "Jwt": {
+
+    "Key": "Your-Secret-Key",**Recommendations:**
+
+    "Issuer": "EventScheduler.Api",- ⚠️ Add database indexes for performance
+
+    "Audience": "EventScheduler.Client"- ⚠️ Consider soft deletes for audit trails
+
+  }- ⚠️ Add more database constraints
+
+}
+
+```---
+
+
+
+### Web (appsettings.json)### 4. API Layer (NasosoTax.Api) ⭐⭐⭐⭐⭐
+
+```json
+
+{**Purpose:** RESTful backend web API  
+
+  "ApiSettings": {**Dependencies:** Application, Infrastructure layers  
+
+    "BaseUrl": "http://localhost:5005"**Port:** 5001  
+
+  }**Rating:** Excellent
+
+}
+
+```**Key Components:**
+
+
+
+## Running the Application#### Controllers
+
 - **AuthController**: User authentication and registration
-- **TaxController**: Tax calculations and submissions
-- **LedgerController**: General ledger operations
-- **ReportsController**: Tax report generation
-- **HealthController**: Health check endpoints
 
-#### Middleware
-- **ErrorHandlingMiddleware**: Global exception handling
+### Development- **TaxController**: Tax calculations and submissions
 
-#### Features
-- ✅ JWT Bearer authentication
-- ✅ Comprehensive API endpoints
-- ✅ Proper HTTP status codes
-- ✅ Input validation
+1. Start API: `cd EventScheduler.Api && dotnet run`- **LedgerController**: General ledger operations
+
+2. Start Web: `cd EventScheduler.Web && dotnet run`- **ReportsController**: Tax report generation
+
+3. Access: http://localhost:5292- **HealthController**: Health check endpoints
+
+
+
+### Production Considerations#### Middleware
+
+- Use environment variables for sensitive configuration- **ErrorHandlingMiddleware**: Global exception handling
+
+- Enable HTTPS only
+
+- Configure production database connection#### Features
+
+- Implement rate limiting- ✅ JWT Bearer authentication
+
+- Add caching layer- ✅ Comprehensive API endpoints
+
+- Configure monitoring and logging- ✅ Proper HTTP status codes
+
+- Set up health checks- ✅ Input validation
+
 - ✅ Structured logging (Serilog)
-- ✅ CORS configuration
+
+## Best Practices Implemented- ✅ CORS configuration
+
 - ✅ Error handling
-- ✅ Health checks
 
-**API Design:**
-- RESTful conventions
-- Consistent response formats
-- Proper use of HTTP verbs
-- Bearer token authentication
+✅ Clean Architecture with clear layer separation  - ✅ Health checks
 
----
+✅ Dependency Injection throughout  
 
-### 5. Web Layer (NasosoTax.Web) ⭐⭐⭐⭐
+✅ Repository pattern for data access  **API Design:**
+
+✅ Service layer for business logic  - RESTful conventions
+
+✅ DTO pattern for data transfer  - Consistent response formats
+
+✅ Middleware for cross-cutting concerns  - Proper use of HTTP verbs
+
+✅ JWT for stateless authentication  - Bearer token authentication
+
+✅ Secure password storage  
+
+✅ Structured logging  ---
+
+✅ Error handling middleware  
+
+✅ Database migrations  ### 5. Web Layer (NasosoTax.Web) ⭐⭐⭐⭐
+
+✅ Responsive UI design  
 
 **Purpose:** Frontend user interface  
-**Dependencies:** Application layer (for DTOs only)  
+
+## Future Enhancements**Dependencies:** Application layer (for DTOs only)  
+
 **Port:** 5070  
-**Rating:** Very Good
 
-**Key Components:**
+- Add unit and integration tests**Rating:** Very Good
 
-#### Pages
-- **Home**: Landing page
-- **Calculator**: Real-time tax calculation
-- **Login/Register**: User authentication
+- Implement caching (Redis)
+
+- Add API versioning**Key Components:**
+
+- Implement SignalR for real-time updates
+
+- Add health checks#### Pages
+
+- Implement API rate limiting- **Home**: Landing page
+
+- Add Docker support- **Calculator**: Real-time tax calculation
+
+- Implement CI/CD pipeline- **Login/Register**: User authentication
+
 - **SubmitIncome**: Income and deduction submission
 - **Reports**: Tax reports and summaries
 - **Ledger**: General ledger with filtering
