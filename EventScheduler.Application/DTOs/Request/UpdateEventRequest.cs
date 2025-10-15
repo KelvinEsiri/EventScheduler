@@ -29,4 +29,10 @@ public class UpdateEventRequest
     public int? CategoryId { get; set; }
 
     public string? Status { get; set; }
+
+    public string EventType { get; set; } = "Other";
+
+    public bool IsPublic { get; set; } = false;
+
+    public List<EventInvitationRequest>? Invitations { get; set; }
 }

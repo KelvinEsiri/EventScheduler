@@ -13,6 +13,7 @@ public class EventSchedulerDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Event> Events { get; set; }
     public DbSet<EventCategory> EventCategories { get; set; }
+    public DbSet<EventInvitation> EventInvitations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -62,6 +63,20 @@ public class EventSchedulerDbContext : DbContext
             entity.HasOne(e => e.User)
                 .WithMany(u => u.EventCategories)
                 .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // EventInvitation configuration
+        modelBuilder.Entity<EventInvitation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.EventId);
+            entity.Property(e => e.InviteeName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.InviteeEmail).IsRequired().HasMaxLength(100);
+
+            entity.HasOne(e => e.Event)
+                .WithMany(e => e.Invitations)
+                .HasForeignKey(e => e.EventId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

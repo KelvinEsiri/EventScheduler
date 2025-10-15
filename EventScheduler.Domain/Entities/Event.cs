@@ -11,6 +11,8 @@ public class Event
     public bool IsAllDay { get; set; } = false;
     public string? Color { get; set; }
     public EventStatus Status { get; set; } = EventStatus.Scheduled;
+    public EventType EventType { get; set; } = EventType.Other;
+    public bool IsPublic { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
@@ -21,6 +23,7 @@ public class Event
     // Navigation properties
     public User User { get; set; } = null!;
     public EventCategory? Category { get; set; }
+    public ICollection<EventInvitation> Invitations { get; set; } = new List<EventInvitation>();
 }
 
 public enum EventStatus
@@ -29,4 +32,17 @@ public enum EventStatus
     InProgress,
     Completed,
     Cancelled
+}
+
+public enum EventType
+{
+    Other,
+    Festival,
+    Interview,
+    Birthday,
+    Exam,
+    Appointment,
+    Meeting,
+    Reminder,
+    Task
 }

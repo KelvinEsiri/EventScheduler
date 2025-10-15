@@ -146,4 +146,31 @@ public class ApiService
             throw;
         }
     }
+
+    // Public event endpoints (no authentication required)
+    public async Task<List<EventResponse>> GetPublicEventsAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<EventResponse>>("/api/events/public") ?? new List<EventResponse>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting public events");
+            throw;
+        }
+    }
+
+    public async Task<EventResponse?> GetPublicEventByIdAsync(int id)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<EventResponse>($"/api/events/public/{id}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting public event {EventId}", id);
+            throw;
+        }
+    }
 }
