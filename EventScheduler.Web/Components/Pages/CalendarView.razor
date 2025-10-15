@@ -45,38 +45,16 @@
         </div>
     </div>
 
-    <!-- Alert Messages -->
-    <div class="alert-container">
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert alert-error">
-                <div class="alert-icon">
-                    <i class="bi bi-exclamation-triangle"></i>
-                </div>
-                <div class="alert-content">
-                    <span>@errorMessage</span>
-                </div>
-                <button class="alert-close" @onclick="() => errorMessage = null">
-                    <i class="bi bi-x"></i>
-                </button>
-            </div>
-        }
+    <!-- Alert Messages - Now using Toasts -->
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <ToastNotification title="Error" message="@errorMessage" type="ToastNotification.ToastType.Error" OnClose="@(() => errorMessage = null)" />
+    }
 
-        @if (!string.IsNullOrEmpty(successMessage))
-        {
-            <div class="alert alert-success">
-                <div class="alert-icon">
-                    <i class="bi bi-check-circle"></i>
-                </div>
-                <div class="alert-content">
-                    <span>@successMessage</span>
-                </div>
-                <button class="alert-close" @onclick="() => successMessage = null">
-                    <i class="bi bi-x"></i>
-                </button>
-            </div>
-        }
-    </div>
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <ToastNotification title="Success" message="@successMessage" type="ToastNotification.ToastType.Success" OnClose="@(() => successMessage = null)" />
+    }
 
     <!-- Main Content -->
     <div class="calendar-content">
@@ -203,6 +181,67 @@
                                     </label>
                                 </div>
                             </div>
+
+                            <!-- Event Type -->
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="bi bi-tag"></i>
+                                    Event Type
+                                </label>
+                                <InputSelect class="form-control" @bind-Value="eventRequest.EventType">
+                                    <option value="Other">Other</option>
+                                    <option value="Festival">🎉 Festival</option>
+                                    <option value="Interview">💼 Interview</option>
+                                    <option value="Birthday">🎂 Birthday</option>
+                                    <option value="Exam">📝 Exam</option>
+                                    <option value="Appointment">🏥 Appointment</option>
+                                    <option value="Meeting">👥 Meeting</option>
+                                    <option value="Reminder">⏰ Reminder</option>
+                                    <option value="Task">✅ Task</option>
+                                </InputSelect>
+                            </div>
+
+                            <!-- Public/Private Toggle -->
+                            <div class="form-group">
+                                <div class="toggle-group">
+                                    <InputCheckbox class="toggle-input" id="isPublic" @bind-Value="eventRequest.IsPublic" />
+                                    <label class="toggle-label" for="isPublic">
+                                        <div class="toggle-slider"></div>
+                                        <span class="toggle-text">
+                                            <i class="bi bi-globe"></i>
+                                            Public Event
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Invitations (only for private events) -->
+                            @if (!eventRequest.IsPublic)
+                            {
+                                <div class="form-group full-width">
+                                    <label class="form-label">
+                                        <i class="bi bi-people"></i>
+                                        Invitations (Optional)
+                                    </label>
+                                    @if (eventRequest.Invitations == null)
+                                    {
+                                        eventRequest.Invitations = new List<EventInvitationRequest>();
+                                    }
+                                    @foreach (var invitation in eventRequest.Invitations.ToList())
+                                    {
+                                        <div class="invitation-row">
+                                            <input type="text" class="form-control" placeholder="Name" @bind="invitation.InviteeName" />
+                                            <input type="email" class="form-control" placeholder="Email" @bind="invitation.InviteeEmail" />
+                                            <button type="button" class="btn btn-sm btn-danger" @onclick="() => eventRequest.Invitations.Remove(invitation)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddInvitation">
+                                        <i class="bi bi-plus"></i> Add Invitation
+                                    </button>
+                                </div>
+                            }
                         </div>
 
                         <!-- Modal Footer -->
@@ -221,6 +260,210 @@
                             </button>
                         </div>
                     </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Event Details Modal -->
+@if (showDetailsModal && selectedEvent != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-content">
+                <!-- Modal Header -->
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <div class="modal-icon">
+                            <i class="bi bi-calendar-event"></i>
+                        </div>
+                        <div>
+                            <h3>@selectedEvent.Title</h3>
+                            <p>Event Details</p>
+                        </div>
+                    </div>
+                    <button class="modal-close" @onclick="CloseDetailsModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="modal-body">
+                    <div class="event-details-grid">
+                        @if (!string.IsNullOrEmpty(selectedEvent.Description))
+                        {
+                            <div class="detail-section">
+                                <label class="detail-label">
+                                    <i class="bi bi-text-paragraph"></i>
+                                    Description
+                                </label>
+                                <p class="detail-text">@selectedEvent.Description</p>
+                            </div>
+                        }
+
+                        <div class="detail-section">
+                            <label class="detail-label">
+                                <i class="bi bi-calendar"></i>
+                                Date & Time
+                            </label>
+                            <p class="detail-text">
+                                @selectedEvent.StartDate.ToString("MMM dd, yyyy")
+                                @if (!selectedEvent.IsAllDay)
+                                {
+                                    <text> at @selectedEvent.StartDate.ToString("hh:mm tt") - @selectedEvent.EndDate.ToString("hh:mm tt")</text>
+                                }
+                                else
+                                {
+                                    <text> (All Day)</text>
+                                }
+                            </p>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(selectedEvent.Location))
+                        {
+                            <div class="detail-section">
+                                <label class="detail-label">
+                                    <i class="bi bi-geo-alt"></i>
+                                    Location
+                                </label>
+                                <p class="detail-text">@selectedEvent.Location</p>
+                            </div>
+                        }
+
+                        <div class="detail-section">
+                            <label class="detail-label">
+                                <i class="bi bi-tag"></i>
+                                Type & Status
+                            </label>
+                            <div class="badges-container">
+                                <span class="detail-badge">@GetEventTypeIcon(selectedEvent.EventType) @selectedEvent.EventType</span>
+                                <span class="detail-badge status-badge-@selectedEvent.Status.ToLower()">@selectedEvent.Status</span>
+                                @if (selectedEvent.IsPublic)
+                                {
+                                    <span class="detail-badge public-badge">
+                                        <i class="bi bi-globe"></i> Public
+                                    </span>
+                                }
+                            </div>
+                        </div>
+
+                        @if (selectedEvent.ParticipantsCount > 0)
+                        {
+                            <div class="detail-section">
+                                <label class="detail-label">
+                                    <i class="bi bi-people"></i>
+                                    Participants
+                                </label>
+                                <p class="detail-text">@selectedEvent.ParticipantsCount invited</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="modal-footer">
+                    @if (isUserOrganizer)
+                    {
+                        <button class="btn btn-secondary" @onclick="() => EditEventFromDetails(selectedEvent)">
+                            <i class="bi bi-pencil"></i>
+                            Edit Event
+                        </button>
+                        <button class="btn btn-danger" @onclick="() => DeleteEventFromDetails(selectedEvent.Id)">
+                            <i class="bi bi-trash"></i>
+                            Delete
+                        </button>
+                    }
+                    else if (selectedEvent.IsPublic && !isUserParticipant)
+                    {
+                        <button class="btn btn-primary" @onclick="JoinEvent">
+                            <i class="bi bi-person-plus"></i>
+                            Join Event
+                        </button>
+                    }
+                    <button class="btn btn-outline" @onclick="CloseDetailsModal">
+                        <i class="bi bi-x-circle"></i>
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Day Events Modal -->
+@if (showDayEventsModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-content">
+                <!-- Modal Header -->
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <div class="modal-icon">
+                            <i class="bi bi-calendar-day"></i>
+                        </div>
+                        <div>
+                            <h3>Events on @selectedDate?.ToString("MMMM dd, yyyy")</h3>
+                            <p>@dayEvents.Count event@(dayEvents.Count == 1 ? "" : "s") scheduled</p>
+                        </div>
+                    </div>
+                    <button class="modal-close" @onclick="CloseDayEventsModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="modal-body">
+                    @if (dayEvents.Count == 0)
+                    {
+                        <div class="empty-day">
+                            <i class="bi bi-calendar-x"></i>
+                            <p>No events scheduled for this day</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="day-events-list">
+                            @foreach (var evt in dayEvents.OrderBy(e => e.StartDate))
+                            {
+                                <div class="day-event-item" @onclick="() => ShowEventDetailsFromDay(evt)">
+                                    <div class="day-event-time">
+                                        @if (evt.IsAllDay)
+                                        {
+                                            <span>All Day</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@evt.StartDate.ToString("hh:mm tt")</span>
+                                        }
+                                    </div>
+                                    <div class="day-event-info">
+                                        <h4>@evt.Title</h4>
+                                        @if (!string.IsNullOrEmpty(evt.Description))
+                                        {
+                                            <p>@evt.Description</p>
+                                        }
+                                        <div class="day-event-badges">
+                                            <span class="mini-badge">@GetEventTypeIcon(evt.EventType) @evt.EventType</span>
+                                            @if (evt.IsPublic)
+                                            {
+                                                <span class="mini-badge public"><i class="bi bi-globe"></i> Public</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="modal-footer">
+                    <button class="btn btn-outline" @onclick="CloseDayEventsModal">
+                        <i class="bi bi-x-circle"></i>
+                        Close
+                    </button>
                 </div>
             </div>
         </div>
@@ -324,55 +567,6 @@
         transform: translateY(-2px);
     }
 
-    /* Alert Styles */
-    .alert-container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 1rem 2rem;
-    }
-
-    .alert {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem 1.5rem;
-        border-radius: 12px;
-        margin-bottom: 1rem;
-        animation: slideIn 0.3s ease;
-    }
-
-    .alert-error {
-        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-        color: white;
-    }
-
-    .alert-success {
-        background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
-        color: white;
-    }
-
-    .alert-icon {
-        font-size: 1.2rem;
-    }
-
-    .alert-content {
-        flex: 1;
-    }
-
-    .alert-close {
-        background: none;
-        border: none;
-        color: inherit;
-        cursor: pointer;
-        padding: 0.25rem;
-        border-radius: 4px;
-        transition: background 0.2s ease;
-    }
-
-    .alert-close:hover {
-        background: rgba(255,255,255,0.2);
-    }
-
     /* Content Area */
     .calendar-content {
         max-width: 1400px;
@@ -442,7 +636,9 @@
     /* FullCalendar Customization */
     #calendar {
         padding: 1rem;
-        min-height: 700px;
+        min-height: 500px;
+        max-width: 100%;
+        overflow-x: auto;
     }
 
     .fc {
@@ -760,6 +956,198 @@
         }
     }
 
+    /* Invitation Rows */
+    .invitation-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .invitation-row input {
+        font-size: 0.9rem;
+    }
+
+    .invitation-row .btn {
+        padding: 0.375rem 0.75rem;
+    }
+
+    .btn-outline-primary {
+        background: transparent;
+        color: #667eea;
+        border: 2px solid #667eea;
+    }
+
+    .btn-outline-primary:hover {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-danger {
+        background: #f56565;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #e53e3e;
+    }
+
+    /* Event Details Modal Styles */
+    .event-details-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .detail-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .detail-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: #4a5568;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .detail-label i {
+        color: #667eea;
+    }
+
+    .detail-text {
+        color: #2d3748;
+        margin: 0;
+        line-height: 1.6;
+    }
+
+    .badges-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .detail-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+
+    .status-badge-scheduled {
+        background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+        color: white;
+    }
+
+    .status-badge-completed {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+    }
+
+    .status-badge-cancelled {
+        background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        color: white;
+    }
+
+    .status-badge-inprogress {
+        background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+        color: white;
+    }
+
+    .public-badge {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    /* Day Events Modal Styles */
+    .empty-day {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #718096;
+    }
+
+    .empty-day i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        display: block;
+        color: #cbd5e0;
+    }
+
+    .day-events-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .day-event-item {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 12px;
+        background: #f8fafc;
+        border-left: 4px solid #667eea;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .day-event-item:hover {
+        background: #e2e8f0;
+        transform: translateX(4px);
+    }
+
+    .day-event-time {
+        flex-shrink: 0;
+        font-weight: 600;
+        color: #667eea;
+        font-size: 0.9rem;
+        min-width: 80px;
+    }
+
+    .day-event-info {
+        flex: 1;
+    }
+
+    .day-event-info h4 {
+        margin: 0 0 0.25rem 0;
+        color: #2d3748;
+        font-size: 1.1rem;
+    }
+
+    .day-event-info p {
+        margin: 0 0 0.5rem 0;
+        color: #718096;
+        font-size: 0.9rem;
+    }
+
+    .day-event-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .mini-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+
+    .mini-badge.public {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
     /* Responsive Design */
     @@media (max-width: 768px) {
         .header-content {
@@ -813,6 +1201,17 @@
     private bool isEditMode = false;
     private int editEventId = 0;
     private bool isSaving = false;
+    
+    // Event details modal state
+    private bool showDetailsModal = false;
+    private EventResponse? selectedEvent = null;
+    private bool isUserOrganizer = false;
+    private bool isUserParticipant = false;
+    
+    // Day events modal state
+    private bool showDayEventsModal = false;
+    private DateTime? selectedDate = null;
+    private List<EventResponse> dayEvents = new();
     
     // Form model
     private CreateEventRequest eventRequest = new CreateEventRequest
@@ -996,12 +1395,46 @@
     }
 
     [JSInvokable]
-    public Task OnEventClick(int eventId)
+    public async Task OnEventClick(int eventId)
     {
         var evt = events.FirstOrDefault(e => e.Id == eventId);
-        if (evt == null) return Task.CompletedTask;
+        if (evt == null) return;
         
-        ShowEditModal(evt);
+        // Show details modal instead of edit modal
+        selectedEvent = evt;
+        
+        // Check if current user is organizer
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userIdClaim = user.FindFirst("userId")?.Value;
+        
+        if (int.TryParse(userIdClaim, out int userId))
+        {
+            isUserOrganizer = evt.UserId == userId;
+            // TODO: Check if user is participant when participants API is available
+            isUserParticipant = false;
+        }
+        
+        showDetailsModal = true;
+        StateHasChanged();
+        return;
+    }
+
+    [JSInvokable]
+    public Task OnDateClick(string dateStr)
+    {
+        // Parse the date
+        if (DateTime.TryParse(dateStr, out DateTime clickedDate))
+        {
+            selectedDate = clickedDate.Date;
+            
+            // Filter events for the selected day
+            dayEvents = events.Where(e => e.StartDate.Date == selectedDate.Value.Date).ToList();
+            
+            showDayEventsModal = true;
+            StateHasChanged();
+        }
+        
         return Task.CompletedTask;
     }
 
@@ -1051,7 +1484,14 @@
                 IsAllDay = allDay,
                 Color = evt.Color,
                 CategoryId = evt.CategoryId,
-                Status = evt.Status
+                Status = evt.Status,
+                EventType = evt.EventType,
+                IsPublic = evt.IsPublic,
+                Invitations = evt.Invitations?.Select(i => new EventInvitationRequest 
+                { 
+                    InviteeName = i.InviteeName, 
+                    InviteeEmail = i.InviteeEmail 
+                }).ToList()
             };
 
             await ApiService.UpdateEventAsync(eventId, updateRequest);
@@ -1098,7 +1538,14 @@
                 IsAllDay = evt.IsAllDay,
                 Color = evt.Color,
                 CategoryId = evt.CategoryId,
-                Status = evt.Status
+                Status = evt.Status,
+                EventType = evt.EventType,
+                IsPublic = evt.IsPublic,
+                Invitations = evt.Invitations?.Select(i => new EventInvitationRequest 
+                { 
+                    InviteeName = i.InviteeName, 
+                    InviteeEmail = i.InviteeEmail 
+                }).ToList()
             };
 
             await ApiService.UpdateEventAsync(eventId, updateRequest);
@@ -1141,15 +1588,125 @@
             Location = evt.Location,
             IsAllDay = evt.IsAllDay,
             Color = evt.Color,
-            CategoryId = evt.CategoryId
+            CategoryId = evt.CategoryId,
+            EventType = evt.EventType,
+            IsPublic = evt.IsPublic,
+            Invitations = evt.Invitations?.Select(i => new EventInvitationRequest 
+            { 
+                InviteeName = i.InviteeName, 
+                InviteeEmail = i.InviteeEmail 
+            }).ToList()
         };
         showModal = true;
+        StateHasChanged();
     }
 
     private void CloseModal()
     {
         showModal = false;
         errorMessage = null;
+    }
+
+    private void AddInvitation()
+    {
+        if (eventRequest.Invitations == null)
+        {
+            eventRequest.Invitations = new List<EventInvitationRequest>();
+        }
+        eventRequest.Invitations.Add(new EventInvitationRequest { InviteeName = "", InviteeEmail = "" });
+    }
+
+    private void CloseDetailsModal()
+    {
+        showDetailsModal = false;
+        selectedEvent = null;
+    }
+
+    private void EditEventFromDetails(EventResponse evt)
+    {
+        CloseDetailsModal();
+        ShowEditModal(evt);
+    }
+
+    private async Task DeleteEventFromDetails(int eventId)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this event?");
+        if (confirmed)
+        {
+            try
+            {
+                await ApiService.DeleteEventAsync(eventId);
+                successMessage = "Event deleted successfully!";
+                CloseDetailsModal();
+                await LoadEvents();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete event {EventId}", eventId);
+                errorMessage = $"Failed to delete event: {ex.Message}";
+            }
+        }
+    }
+
+    private async Task JoinEvent()
+    {
+        if (selectedEvent == null) return;
+
+        try
+        {
+            // TODO: Implement join event API call
+            // await ApiService.JoinEventAsync(selectedEvent.Id);
+            successMessage = "Joined event successfully!";
+            CloseDetailsModal();
+            await LoadEvents();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to join event {EventId}", selectedEvent.Id);
+            errorMessage = $"Failed to join event: {ex.Message}";
+        }
+    }
+
+    private void CloseDayEventsModal()
+    {
+        showDayEventsModal = false;
+        selectedDate = null;
+        dayEvents.Clear();
+    }
+
+    private void ShowEventDetailsFromDay(EventResponse evt)
+    {
+        CloseDayEventsModal();
+        selectedEvent = evt;
+        
+        // Check if current user is organizer
+        var authState = AuthenticationStateProvider.GetAuthenticationStateAsync().Result;
+        var user = authState.User;
+        var userIdClaim = user.FindFirst("userId")?.Value;
+        
+        if (int.TryParse(userIdClaim, out int userId))
+        {
+            isUserOrganizer = evt.UserId == userId;
+            isUserParticipant = false;
+        }
+        
+        showDetailsModal = true;
+    }
+
+    private string GetEventTypeIcon(string eventType)
+    {
+        return eventType switch
+        {
+            "Festival" => "🎉",
+            "Interview" => "💼",
+            "Birthday" => "🎂",
+            "Exam" => "📝",
+            "Appointment" => "🏥",
+            "Meeting" => "👥",
+            "Reminder" => "⏰",
+            "Task" => "✅",
+            _ => "📅"
+        };
     }
 
     private async Task SaveEvent()
@@ -1173,7 +1730,10 @@
                     Location = eventRequest.Location,
                     IsAllDay = eventRequest.IsAllDay,
                     Color = eventRequest.Color,
-                    CategoryId = eventRequest.CategoryId
+                    CategoryId = eventRequest.CategoryId,
+                    EventType = eventRequest.EventType,
+                    IsPublic = eventRequest.IsPublic,
+                    Invitations = eventRequest.Invitations?.Where(i => !string.IsNullOrWhiteSpace(i.InviteeName) && !string.IsNullOrWhiteSpace(i.InviteeEmail)).ToList()
                 };
                 await ApiService.UpdateEventAsync(editEventId, updateRequest);
                 Logger.LogInformation("CalendarView: Event {EventId} updated successfully", editEventId);
@@ -1181,6 +1741,13 @@
             }
             else
             {
+                // Clean up empty invitations before sending
+                if (eventRequest.Invitations != null)
+                {
+                    eventRequest.Invitations = eventRequest.Invitations
+                        .Where(i => !string.IsNullOrWhiteSpace(i.InviteeName) && !string.IsNullOrWhiteSpace(i.InviteeEmail))
+                        .ToList();
+                }
                 await ApiService.CreateEventAsync(eventRequest);
                 Logger.LogInformation("CalendarView: New event created successfully - Title={Title}", eventRequest.Title);
                 successMessage = "Event created successfully!";

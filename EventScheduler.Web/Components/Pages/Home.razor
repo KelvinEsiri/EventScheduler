@@ -1,4 +1,8 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
 
 <PageTitle>Event Scheduler</PageTitle>
 
@@ -43,9 +47,27 @@
 
             <div class="d-grid gap-2 d-md-block mb-5">
                 <a href="/public-events" class="btn btn-success btn-lg px-5">View Public Events</a>
-                <a href="/register" class="btn btn-primary btn-lg px-5 ms-md-3">Get Started</a>
-                <a href="/login" class="btn btn-outline-primary btn-lg px-5 ms-md-3">Login</a>
+                @if (isAuthenticated)
+                {
+                    <a href="/calendar-view" class="btn btn-primary btn-lg px-5 ms-md-3">My Calendar</a>
+                    <a href="/calendar-list" class="btn btn-outline-primary btn-lg px-5 ms-md-3">My Events</a>
+                }
+                else
+                {
+                    <a href="/register" class="btn btn-primary btn-lg px-5 ms-md-3">Get Started</a>
+                    <a href="/login" class="btn btn-outline-primary btn-lg px-5 ms-md-3">Login</a>
+                }
             </div>
         </div>
     </div>
 </div>
+
+@code {
+    private bool isAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+    }
+}

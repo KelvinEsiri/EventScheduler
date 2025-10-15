@@ -64,6 +64,11 @@ window.fullCalendarInterop = {
                 );
             },
             
+            // Date click - show events for that day
+            dateClick: function(info) {
+                dotNetHelper.invokeMethodAsync('OnDateClick', info.dateStr);
+            },
+            
             // Event drag and drop
             eventDrop: function(info) {
                 dotNetHelper.invokeMethodAsync('OnEventDrop',
