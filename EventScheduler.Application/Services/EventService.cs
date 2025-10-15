@@ -26,6 +26,12 @@ public class EventService : IEventService
             throw new InvalidOperationException("End date cannot be before start date");
         }
 
+        // Parse the EventType string to enum
+        if (!Enum.TryParse<EventType>(request.EventType, out var eventType))
+        {
+            eventType = EventType.Other;
+        }
+
         var eventEntity = new Event
         {
             Title = request.Title,
@@ -38,10 +44,29 @@ public class EventService : IEventService
             CategoryId = request.CategoryId,
             UserId = userId,
             Status = EventStatus.Scheduled,
+            EventType = eventType,
+            IsPublic = request.IsPublic,
             CreatedAt = DateTime.UtcNow
         };
 
         var createdEvent = await _eventRepository.CreateAsync(eventEntity);
+
+        // Add invitations if any
+        if (request.Invitations != null && request.Invitations.Any())
+        {
+            foreach (var invitation in request.Invitations)
+            {
+                var invitationEntity = new EventInvitation
+                {
+                    EventId = createdEvent.Id,
+                    InviteeName = invitation.InviteeName,
+                    InviteeEmail = invitation.InviteeEmail,
+                    InvitedAt = DateTime.UtcNow
+                };
+                createdEvent.Invitations.Add(invitationEntity);
+            }
+            await _eventRepository.UpdateAsync(createdEvent);
+        }
 
         return MapToResponse(createdEvent);
     }
@@ -60,6 +85,12 @@ public class EventService : IEventService
             throw new InvalidOperationException("End date cannot be before start date");
         }
 
+        // Parse the EventType string to enum
+        if (!Enum.TryParse<EventType>(request.EventType, out var eventType))
+        {
+            eventType = EventType.Other;
+        }
+
         eventEntity.Title = request.Title;
         eventEntity.Description = request.Description;
         eventEntity.StartDate = request.StartDate;
@@ -68,6 +99,8 @@ public class EventService : IEventService
         eventEntity.IsAllDay = request.IsAllDay;
         eventEntity.Color = request.Color ?? eventEntity.Color;
         eventEntity.CategoryId = request.CategoryId;
+        eventEntity.EventType = eventType;
+        eventEntity.IsPublic = request.IsPublic;
         eventEntity.UpdatedAt = DateTime.UtcNow;
 
         if (!string.IsNullOrEmpty(request.Status) && Enum.TryParse<EventStatus>(request.Status, out var status))
@@ -82,6 +115,23 @@ public class EventService : IEventService
                 {
                     await _emailService.SendEventCompletedEmailAsync(user.Email, user.FullName, eventEntity.Title);
                 }
+            }
+        }
+
+        // Update invitations
+        if (request.Invitations != null)
+        {
+            eventEntity.Invitations.Clear();
+            foreach (var invitation in request.Invitations)
+            {
+                var invitationEntity = new EventInvitation
+                {
+                    EventId = eventEntity.Id,
+                    InviteeName = invitation.InviteeName,
+                    InviteeEmail = invitation.InviteeEmail,
+                    InvitedAt = DateTime.UtcNow
+                };
+                eventEntity.Invitations.Add(invitationEntity);
             }
         }
 
@@ -113,6 +163,18 @@ public class EventService : IEventService
         return events.Select(MapToResponse);
     }
 
+    public async Task<IEnumerable<EventResponse>> GetPublicEventsAsync()
+    {
+        var events = await _eventRepository.GetPublicEventsAsync();
+        return events.Select(MapToResponse);
+    }
+
+    public async Task<EventResponse?> GetPublicEventByIdAsync(int eventId)
+    {
+        var eventEntity = await _eventRepository.GetPublicEventByIdAsync(eventId);
+        return eventEntity == null ? null : MapToResponse(eventEntity);
+    }
+
     private EventResponse MapToResponse(Event eventEntity)
     {
         return new EventResponse
@@ -126,9 +188,19 @@ public class EventService : IEventService
             IsAllDay = eventEntity.IsAllDay,
             Color = eventEntity.Color,
             Status = eventEntity.Status.ToString(),
+            EventType = eventEntity.EventType.ToString(),
+            IsPublic = eventEntity.IsPublic,
             UserId = eventEntity.UserId,
             CategoryId = eventEntity.CategoryId,
             CategoryName = eventEntity.Category?.Name,
+            ParticipantsCount = eventEntity.Invitations?.Count ?? 0,
+            Invitations = eventEntity.Invitations?.Select(i => new EventInvitationResponse
+            {
+                Id = i.Id,
+                InviteeName = i.InviteeName,
+                InviteeEmail = i.InviteeEmail,
+                InvitedAt = i.InvitedAt
+            }).ToList(),
             CreatedAt = eventEntity.CreatedAt,
             UpdatedAt = eventEntity.UpdatedAt
         };

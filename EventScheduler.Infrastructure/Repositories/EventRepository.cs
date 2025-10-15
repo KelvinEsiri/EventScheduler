@@ -18,6 +18,7 @@ public class EventRepository : IEventRepository
     {
         return await _context.Events
             .Include(e => e.Category)
+            .Include(e => e.Invitations)
             .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
     }
 
@@ -25,6 +26,7 @@ public class EventRepository : IEventRepository
     {
         return await _context.Events
             .Include(e => e.Category)
+            .Include(e => e.Invitations)
             .Where(e => e.UserId == userId)
             .OrderBy(e => e.StartDate)
             .ToListAsync();
@@ -34,6 +36,7 @@ public class EventRepository : IEventRepository
     {
         return await _context.Events
             .Include(e => e.Category)
+            .Include(e => e.Invitations)
             .Where(e => e.UserId == userId &&
                        e.StartDate >= startDate &&
                        e.StartDate <= endDate)
@@ -63,5 +66,25 @@ public class EventRepository : IEventRepository
             _context.Events.Remove(eventEntity);
             await _context.SaveChangesAsync();
         }
+    }
+
+    public async Task<IEnumerable<Event>> GetPublicEventsAsync()
+    {
+        return await _context.Events
+            .Include(e => e.Category)
+            .Include(e => e.Invitations)
+            .Include(e => e.User)
+            .Where(e => e.IsPublic)
+            .OrderBy(e => e.StartDate)
+            .ToListAsync();
+    }
+
+    public async Task<Event?> GetPublicEventByIdAsync(int id)
+    {
+        return await _context.Events
+            .Include(e => e.Category)
+            .Include(e => e.Invitations)
+            .Include(e => e.User)
+            .FirstOrDefaultAsync(e => e.Id == id && e.IsPublic);
     }
 }

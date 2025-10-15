@@ -1,4 +1,5 @@
 using EventScheduler.Api.Middleware;
+using EventScheduler.Api.Hubs;
 using EventScheduler.Infrastructure.Data;
 using EventScheduler.Infrastructure.Repositories;
 using EventScheduler.Application.Interfaces.Repositories;
@@ -45,6 +46,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
+// Add SignalR
+builder.Services.AddSignalR();
+
 // Configure Database
 builder.Services.AddDbContext<EventSchedulerDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -80,6 +84,21 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
+
+    // Configure JWT for SignalR
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // Configure CORS
@@ -114,6 +133,7 @@ app.UseCors("AllowWebApp");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<EventHub>("/hubs/events");
 
 // Add a simple health check endpoint
 app.MapGet("/", () => "EventScheduler API is running!");

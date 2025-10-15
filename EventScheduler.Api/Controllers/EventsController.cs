@@ -175,4 +175,42 @@ public class EventsController : ControllerBase
             return StatusCode(500, new { error = "An error occurred while deleting the event" });
         }
     }
+
+    [AllowAnonymous]
+    [HttpGet("public")]
+    public async Task<IActionResult> GetPublicEvents()
+    {
+        try
+        {
+            var events = await _eventService.GetPublicEventsAsync();
+            return Ok(events);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving public events");
+            return StatusCode(500, new { error = "An error occurred while retrieving public events" });
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("public/{id}")]
+    public async Task<IActionResult> GetPublicEventById(int id)
+    {
+        try
+        {
+            var eventData = await _eventService.GetPublicEventByIdAsync(id);
+            
+            if (eventData == null)
+            {
+                return NotFound(new { error = "Public event not found" });
+            }
+
+            return Ok(eventData);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving public event {EventId}", id);
+            return StatusCode(500, new { error = "An error occurred while retrieving the public event" });
+        }
+    }
 }

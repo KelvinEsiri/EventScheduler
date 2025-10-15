@@ -27,4 +27,22 @@ public class CreateEventRequest
     public string? Color { get; set; }
 
     public int? CategoryId { get; set; }
+
+    public string EventType { get; set; } = "Other";
+
+    public bool IsPublic { get; set; } = false;
+
+    public List<EventInvitationRequest>? Invitations { get; set; }
+}
+
+public class EventInvitationRequest
+{
+    [Required(ErrorMessage = "Invitee name is required")]
+    [StringLength(100, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 100 characters")]
+    public required string InviteeName { get; set; }
+
+    [Required(ErrorMessage = "Invitee email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email address")]
+    [StringLength(100, ErrorMessage = "Email cannot exceed 100 characters")]
+    public required string InviteeEmail { get; set; }
 }

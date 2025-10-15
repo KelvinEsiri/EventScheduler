@@ -10,4 +10,6 @@ public interface IEventRepository
     Task<Event> CreateAsync(Event eventEntity);
     Task UpdateAsync(Event eventEntity);
     Task DeleteAsync(int id, int userId);
+    Task<IEnumerable<Event>> GetPublicEventsAsync();
+    Task<Event?> GetPublicEventByIdAsync(int id);
 }
