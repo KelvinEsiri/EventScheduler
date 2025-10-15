@@ -6,8 +6,10 @@ A modern event scheduling application built with .NET 9.0 and Blazor Server, fol
 
 - ✅ **User Authentication** - Secure registration and login with JWT tokens
 - ✅ **Event Management** - Create, edit, delete, and view events
-- ✅ **Calendar Views** - List and grid calendar views
+- ✅ **Interactive Calendar** - FullCalendar.js with drag-and-drop, resize, and multiple views
+- ✅ **Calendar Views** - Month, Week, Day, and List views
 - ✅ **Event Status** - Track events (Scheduled, InProgress, Completed, Cancelled)
+- ✅ **Comprehensive Logging** - Serilog with console and file output for troubleshooting
 - ✅ **Responsive UI** - Built with Bootstrap 5 for mobile and desktop
 - ✅ **Clean Architecture** - Modular, maintainable, and testable codebase
 - ✅ **Secure** - Password hashing, JWT authentication, and protected endpoints
@@ -19,8 +21,9 @@ A modern event scheduling application built with .NET 9.0 and Blazor Server, fol
 - **Database**: SQL Server (LocalDB for development)
 - **ORM**: Entity Framework Core 9.0
 - **Authentication**: JWT Bearer tokens
-- **Logging**: Serilog
-- **UI**: Bootstrap 5
+- **Logging**: Serilog 9.0 (Console + File sinks)
+- **Calendar**: FullCalendar.js v6.1.10
+- **UI**: Bootstrap 5, Bootstrap Icons 1.11.0
 
 ## Project Structure
 
@@ -193,6 +196,8 @@ dotnet ef database drop --force --startup-project ../EventScheduler.Api
 
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database Setup](docs/DATABASE_SETUP.md) - Database configuration and migrations
+- [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
+- [Serilog Implementation](SERILOG_LOGGING_IMPLEMENTATION.md) - Serilog setup and configuration
 
 ## Contributing
 

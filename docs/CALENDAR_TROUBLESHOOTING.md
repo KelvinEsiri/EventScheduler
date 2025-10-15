@@ -51,17 +51,33 @@ if (typeof FullCalendar === 'undefined') {
 
 ### How to Diagnose:
 
-1. **Open Browser Console (F12)**
+1. **Check Application Logs First**
+   ```bash
+   # PowerShell - Check authentication
+   Get-Content .\EventScheduler.Web\logs\*.log | Select-String "CalendarView.*authenticated"
+   
+   # Check event loading
+   Get-Content .\EventScheduler.Web\logs\*.log | Select-String "CalendarView.*Loaded.*events"
+   
+   # Check calendar initialization
+   Get-Content .\EventScheduler.Web\logs\*.log | Select-String "CalendarView.*calendar initialization"
+   
+   # Check for errors
+   Get-Content .\EventScheduler.Web\logs\*.log | Select-String "\[ERR\].*CalendarView"
+   ```
+
+2. **Open Browser Console (F12)**
    - Look for errors (red text)
    - Look for initialization logs
    - Check if FullCalendar object exists: Type `FullCalendar` in console
 
-2. **Check Network Tab**
+3. **Check Network Tab**
    - Verify FullCalendar CDN loads successfully
    - Look for `fullcalendar@6.1.10/index.global.min.js`
    - Status should be 200 (OK)
+   - Check API call: `http://localhost:5006/api/events` - Status 200
 
-3. **Check Element**
+4. **Check Element**
    - In Elements/Inspector tab, look for `<div id="calendar"></div>`
    - Should have FullCalendar classes like `.fc`, `.fc-view`, etc.
 
@@ -99,13 +115,17 @@ Console.WriteLine($"Error loading events: {ex.Message}");
 
 ### Verification Checklist:
 
-- [ ] API is running on port 5005
+- [ ] API is running on port 5006
+- [ ] Web is running on port 5292
 - [ ] User is logged in (check localStorage has auth_token)
 - [ ] Browser console shows "Initializing FullCalendar..."
 - [ ] Browser console shows "FullCalendar rendered successfully!"
 - [ ] Network tab shows FullCalendar CDN loaded (200 status)
 - [ ] Events API returns data successfully
 - [ ] No JavaScript errors in console
+- [ ] Application logs show successful authentication
+- [ ] Application logs show events loaded
+- [ ] Application logs show calendar initialized
 
 ### If Still Not Working:
 
@@ -154,7 +174,42 @@ window.fullCalendarInterop.initialize('calendar', null, [], true)
 - Subsequent loads are cached (instant)
 - Each event adds ~1ms to render time
 
+### Comprehensive Logging (NEW)
+
+The application now includes detailed Serilog logging for easier troubleshooting:
+
+**Log Locations:**
+- **API**: `EventScheduler.Api/logs/eventscheduler-api-<date>.log`
+- **Web**: `EventScheduler.Web/logs/eventscheduler-web-<date>.log`
+
+**Key Log Messages to Look For:**
+
+✅ **Successful Flow:**
+```
+[15:30:45 INF] CalendarView: OnInitializedAsync started
+[15:30:45 INF] CalendarView: User authenticated in OnInitializedAsync
+[15:30:45 INF] CalendarView: API token set from auth state
+[15:30:45 INF] CalendarView: Loading events from API...
+[15:30:45 INF] CalendarView: Loaded 5 events successfully
+[15:30:45 INF] CalendarView: Starting calendar initialization - Event count: 5
+[15:30:46 INF] CalendarView: Calling fullCalendarInterop.initialize with 5 events
+[15:30:46 INF] CalendarView: ✅ Calendar initialized successfully!
+```
+
+❌ **Error Patterns:**
+```
+[15:30:45 WRN] CalendarView: User not authenticated, redirecting to login
+[15:30:45 ERR] CalendarView: Failed to load events from API
+[15:30:46 ERR] CalendarView: ❌ Calendar initialization returned false
+[15:30:46 ERR] CalendarView: ❌ Exception during calendar initialization
+```
+
+**See Also:**
+- [Logging Guide](LOGGING_GUIDE.md) - Complete logging documentation
+- [Serilog Implementation](../SERILOG_LOGGING_IMPLEMENTATION.md) - Configuration details
+
 ---
 
-**Status:** Fixed with multiple safeguards
-**Test:** Refresh page and check browser console for logs
+**Status:** Fixed with multiple safeguards + comprehensive logging
+**Last Updated:** October 15, 2025
+**Test:** Refresh page and check both browser console AND application logs

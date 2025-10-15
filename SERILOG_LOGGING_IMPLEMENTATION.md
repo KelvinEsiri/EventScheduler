@@ -7,10 +7,12 @@ Comprehensive Serilog logging has been added to both the API and Web projects to
 
 ### 1. **Serilog Packages** (EventScheduler.Web.csproj)
 ```xml
-<PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
-<PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
-<PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+<PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+<PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+<PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
 ```
+
+**Note**: Upgraded to version 9.0.0 for better compatibility with .NET 9.0
 
 ### 2. **API Configuration** (EventScheduler.Api/Program.cs)
 - **Log Location**: `logs/eventscheduler-api-.log`
@@ -151,6 +153,23 @@ This allows for:
 - **Warning**: Unexpected conditions (event not found, user not authenticated)
 - **Error**: Failures with full exception details
 
+## Recent Fixes
+
+### Type Conversion Issues
+**Problem**: `EventResponse.Status` is a `string`, but `GetEventColor()` expected `EventStatus` enum.
+
+**Solution**: Added enum parsing in `ConvertToFullCalendarFormat()`:
+```csharp
+var status = Enum.TryParse<EventStatus>(e.Status, out var parsedStatus) 
+    ? parsedStatus 
+    : EventStatus.Scheduled;
+```
+
+**Added Using Directive**:
+```csharp
+@using EventScheduler.Domain.Entities
+```
+
 ## Next Steps
 
 1. **Stop current running instances** (if any)
@@ -172,7 +191,55 @@ This allows for:
 ✅ **Multi-target output** - Console for dev + Files for history  
 ✅ **Structured format** - Easy to parse and search  
 
+## Troubleshooting Tips
+
+### If Calendar Doesn't Display
+1. **Check browser console** (F12) for JavaScript errors
+2. **Check application logs** for C# errors
+3. **Verify FullCalendar CDN** is accessible
+4. **Check authentication** - logs will show if user is authenticated
+5. **Check event loading** - logs will show event count
+6. **Check JSInterop** - logs will show if `fullCalendarInterop.initialize` was called
+
+### Common Log Patterns
+
+**Successful Flow**:
+```
+[15:30:45 INF] CalendarView: OnInitializedAsync started
+[15:30:45 INF] CalendarView: User authenticated in OnInitializedAsync
+[15:30:45 INF] CalendarView: API token set from auth state
+[15:30:45 INF] CalendarView: Loading events from API...
+[15:30:45 INF] CalendarView: Loaded 5 events successfully
+[15:30:45 INF] CalendarView: LoadEvents completed, isLoading set to false
+[15:30:45 INF] CalendarView: OnAfterRenderAsync - FirstRender=False, HasCheckedAuth=True, CalendarInitialized=False, IsLoading=False
+[15:30:45 INF] CalendarView: Starting calendar initialization - Event count: 5
+[15:30:46 INF] CalendarView: Calling fullCalendarInterop.initialize with 5 events
+[15:30:46 INF] CalendarView: ✅ Calendar initialized successfully!
+```
+
+**Authentication Failure**:
+```
+[15:30:45 INF] CalendarView: OnInitializedAsync started
+[15:30:45 INF] CalendarView: User not authenticated yet, will check in OnAfterRenderAsync
+[15:30:45 INF] CalendarView: OnAfterRenderAsync - FirstRender=True, HasCheckedAuth=False...
+[15:30:45 INF] CalendarView: Re-checking authentication with JS interop available
+[15:30:45 WRN] CalendarView: User not authenticated, redirecting to login
+```
+
+**Event Loading Failure**:
+```
+[15:30:45 INF] CalendarView: Loading events from API...
+[15:30:45 ERR] CalendarView: Failed to load events from API
+System.Net.Http.HttpRequestException: Connection refused
+```
+
+**Calendar Initialization Failure**:
+```
+[15:30:45 INF] CalendarView: Calling fullCalendarInterop.initialize with 5 events
+[15:30:45 ERR] CalendarView: ❌ Calendar initialization returned false
+```
+
 ---
 
-**Status**: ✅ All code changes complete, packages restored, build succeeded  
+**Status**: ✅ All code changes complete, packages restored, build succeeded, no errors  
 **Ready to test**: Stop current instances and run `.\run-all.bat` to see logs in action
