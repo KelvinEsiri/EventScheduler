@@ -1,0 +1,577 @@
+@page "/calendar-view"
+@using EventScheduler.Application.DTOs.Request
+@using EventScheduler.Application.DTOs.Response
+@using EventScheduler.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@rendermode InteractiveServer
+@inject ApiService ApiService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Calendar View - Event Scheduler</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>
+                <i class="bi bi-calendar3"></i> Calendar View
+            </h2>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                <i class="bi bi-plus-circle"></i> New Event
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <!-- Calendar Navigation -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <button class="btn btn-outline-primary" @onclick="PreviousMonth">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                </div>
+                <div class="col text-center">
+                    <h4 class="mb-0">@currentDate.ToString("MMMM yyyy")</h4>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-primary" @onclick="NextMonth">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-secondary" @onclick="GoToToday">
+                        Today
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Calendar Grid -->
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered calendar-table mb-0">
+                        <thead>
+                            <tr class="bg-light">
+                                <th class="text-center">Sunday</th>
+                                <th class="text-center">Monday</th>
+                                <th class="text-center">Tuesday</th>
+                                <th class="text-center">Wednesday</th>
+                                <th class="text-center">Thursday</th>
+                                <th class="text-center">Friday</th>
+                                <th class="text-center">Saturday</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var week in GetCalendarWeeks())
+                            {
+                                <tr>
+                                    @foreach (var day in week)
+                                    {
+                                        var dayEvents = GetEventsForDay(day);
+                                        var isToday = day.Date == DateTime.Today;
+                                        var isCurrentMonth = day.Month == currentDate.Month;
+                                        
+                                        <td class="calendar-day @(isToday ? "today" : "") @(isCurrentMonth ? "" : "other-month")" 
+                                            @onclick="() => SelectDate(day)">
+                                            <div class="day-number">@day.Day</div>
+                                            <div class="day-events">
+                                                @foreach (var evt in dayEvents.Take(3))
+                                                {
+                                                    <div class="event-badge @GetEventClass(evt.Status)" 
+                                                         @onclick="() => ShowEventDetails(evt)"
+                                                         @onclick:stopPropagation="true">
+                                                        <small>@evt.Title</small>
+                                                    </div>
+                                                }
+                                                @if (dayEvents.Count > 3)
+                                                {
+                                                    <div class="text-muted small">
+                                                        +@(dayEvents.Count - 3) more
+                                                    </div>
+                                                }
+                                            </div>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upcoming Events List -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Upcoming Events</h5>
+            </div>
+            <div class="card-body">
+                @if (upcomingEvents.Any())
+                {
+                    <div class="list-group">
+                        @foreach (var evt in upcomingEvents.Take(5))
+                        {
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">@evt.Title</h6>
+                                    <small class="text-muted">@evt.StartDate.ToString("MMM dd, yyyy")</small>
+                                </div>
+                                <p class="mb-1">@evt.Description</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        @if (!evt.IsAllDay)
+                                        {
+                                            <i class="bi bi-clock"></i>
+                                            <span>@evt.StartDate.ToString("hh:mm tt")</span>
+                                        }
+                                        else
+                                        {
+                                            <span>All Day</span>
+                                        }
+                                        @if (!string.IsNullOrEmpty(evt.Location))
+                                        {
+                                            <span class="ms-2">
+                                                <i class="bi bi-geo-alt"></i> @evt.Location
+                                            </span>
+                                        }
+                                    </small>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowEditModal(evt)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => DeleteEvent(evt.Id)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center mb-0">No upcoming events</p>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Create/Edit Event Modal -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-@(isEditMode ? "pencil" : "plus-circle")"></i>
+                        @(isEditMode ? "Edit Event" : "Create New Event")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@eventRequest" OnValidSubmit="@SaveEvent">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Title <span class="text-danger">*</span></label>
+                                <InputText class="form-control" @bind-Value="eventRequest.Title" placeholder="Enter event title" />
+                                <ValidationMessage For="@(() => eventRequest.Title)" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Description</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="eventRequest.Description" 
+                                             placeholder="Enter event description (optional)" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Start Date & Time <span class="text-danger">*</span></label>
+                                <InputDate Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="eventRequest.StartDate" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">End Date & Time <span class="text-danger">*</span></label>
+                                <InputDate Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="eventRequest.EndDate" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Location</label>
+                                <InputText class="form-control" @bind-Value="eventRequest.Location" 
+                                         placeholder="Enter event location (optional)" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="isAllDay" @bind-Value="eventRequest.IsAllDay" />
+                                    <label class="form-check-label" for="isAllDay">
+                                        All Day Event
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseModal">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                <i class="bi bi-@(isEditMode ? "check-circle" : "plus-circle")"></i>
+                                @(isEditMode ? "Update Event" : "Create Event")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .calendar-table {
+        table-layout: fixed;
+    }
+
+    .calendar-day {
+        height: 120px;
+        vertical-align: top;
+        padding: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .calendar-day:hover {
+        background-color: #f8f9fa;
+    }
+
+    .calendar-day.today {
+        background-color: #e3f2fd;
+    }
+
+    .calendar-day.other-month {
+        background-color: #fafafa;
+        color: #999;
+    }
+
+    .day-number {
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+
+    .day-events {
+        font-size: 0.85rem;
+    }
+
+    .event-badge {
+        background-color: #007bff;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-bottom: 2px;
+        display: block;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .event-badge:hover {
+        opacity: 0.8;
+    }
+
+    .event-badge.completed {
+        background-color: #28a745;
+    }
+
+    .event-badge.cancelled {
+        background-color: #dc3545;
+    }
+
+    .event-badge.inprogress {
+        background-color: #ffc107;
+    }
+</style>
+
+@code {
+    private List<EventResponse> events = new();
+    private List<EventResponse> upcomingEvents = new();
+    private DateTime currentDate = DateTime.Today;
+    private DateTime selectedDate = DateTime.Today;
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool isEditMode = false;
+    private bool isSaving = false;
+    private int editEventId = 0;
+    private string? errorMessage;
+    private string? successMessage;
+    
+    private CreateEventRequest eventRequest = new() 
+    { 
+        Title = "", 
+        StartDate = DateTime.Now, 
+        EndDate = DateTime.Now.AddHours(1) 
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is authenticated
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        
+        await LoadEvents();
+    }
+
+    private async Task LoadEvents()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            events = await ApiService.GetAllEventsAsync();
+            upcomingEvents = events
+                .Where(e => e.StartDate >= DateTime.Today && e.Status != "Cancelled")
+                .OrderBy(e => e.StartDate)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load events. Please try again.";
+            Console.WriteLine($"Error loading events: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<List<DateTime>> GetCalendarWeeks()
+    {
+        var weeks = new List<List<DateTime>>();
+        var firstDayOfMonth = new DateTime(currentDate.Year, currentDate.Month, 1);
+        var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+        
+        // Start from the Sunday before or on the first day
+        var startDate = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek);
+        
+        // End on the Saturday after or on the last day
+        var endDate = lastDayOfMonth.AddDays(6 - (int)lastDayOfMonth.DayOfWeek);
+        
+        var currentWeek = new List<DateTime>();
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            currentWeek.Add(date);
+            if (currentWeek.Count == 7)
+            {
+                weeks.Add(currentWeek);
+                currentWeek = new List<DateTime>();
+            }
+        }
+        
+        return weeks;
+    }
+
+    private List<EventResponse> GetEventsForDay(DateTime day)
+    {
+        return events
+            .Where(e => e.StartDate.Date == day.Date)
+            .OrderBy(e => e.StartDate)
+            .ToList();
+    }
+
+    private string GetEventClass(string status)
+    {
+        return status.ToLower() switch
+        {
+            "completed" => "completed",
+            "cancelled" => "cancelled",
+            "inprogress" => "inprogress",
+            _ => ""
+        };
+    }
+
+    private void PreviousMonth()
+    {
+        currentDate = currentDate.AddMonths(-1);
+    }
+
+    private void NextMonth()
+    {
+        currentDate = currentDate.AddMonths(1);
+    }
+
+    private void GoToToday()
+    {
+        currentDate = DateTime.Today;
+    }
+
+    private void SelectDate(DateTime date)
+    {
+        selectedDate = date;
+        ShowCreateModalForDate(date);
+    }
+
+    private void ShowCreateModalForDate(DateTime date)
+    {
+        isEditMode = false;
+        var startTime = date.Date.AddHours(9); // Default to 9 AM
+        eventRequest = new CreateEventRequest
+        {
+            Title = "",
+            StartDate = startTime,
+            EndDate = startTime.AddHours(1)
+        };
+        showModal = true;
+    }
+
+    private void ShowCreateModal()
+    {
+        isEditMode = false;
+        eventRequest = new CreateEventRequest
+        {
+            Title = "",
+            StartDate = DateTime.Now,
+            EndDate = DateTime.Now.AddHours(1)
+        };
+        showModal = true;
+    }
+
+    private void ShowEditModal(EventResponse evt)
+    {
+        isEditMode = true;
+        editEventId = evt.Id;
+        eventRequest = new CreateEventRequest
+        {
+            Title = evt.Title,
+            Description = evt.Description,
+            StartDate = evt.StartDate,
+            EndDate = evt.EndDate,
+            Location = evt.Location,
+            IsAllDay = evt.IsAllDay,
+            Color = evt.Color,
+            CategoryId = evt.CategoryId
+        };
+        showModal = true;
+    }
+
+    private void ShowEventDetails(EventResponse evt)
+    {
+        ShowEditModal(evt);
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        errorMessage = null;
+    }
+
+    private async Task SaveEvent()
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateEventRequest
+                {
+                    Title = eventRequest.Title,
+                    Description = eventRequest.Description,
+                    StartDate = eventRequest.StartDate,
+                    EndDate = eventRequest.EndDate,
+                    Location = eventRequest.Location,
+                    IsAllDay = eventRequest.IsAllDay,
+                    Color = eventRequest.Color,
+                    CategoryId = eventRequest.CategoryId
+                };
+                await ApiService.UpdateEventAsync(editEventId, updateRequest);
+                successMessage = "Event updated successfully!";
+            }
+            else
+            {
+                await ApiService.CreateEventAsync(eventRequest);
+                successMessage = "Event created successfully!";
+            }
+
+            CloseModal();
+            await LoadEvents();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to save event: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteEvent(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this event?");
+        if (confirmed)
+        {
+            try
+            {
+                await ApiService.DeleteEventAsync(id);
+                successMessage = "Event deleted successfully!";
+                await LoadEvents();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Failed to delete event: {ex.Message}";
+            }
+        }
+    }
+}

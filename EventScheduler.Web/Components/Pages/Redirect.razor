@@ -1,0 +1,12 @@
+@page "/redirect/{redirectTo}"
+@inject NavigationManager NavigationManager
+
+@code {
+    [Parameter]
+    public string RedirectTo { get; set; } = "/";
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo($"/{RedirectTo}", true);
+    }
+}

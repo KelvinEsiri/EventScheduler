@@ -4,6 +4,7 @@
 @inject ApiService ApiService
 @inject AuthStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
+@rendermode InteractiveServer
 
 <PageTitle>Register - Event Scheduler</PageTitle>
 
@@ -94,7 +95,7 @@
                 NavigationManager.NavigateTo("/calendar");
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             errorMessage = "Registration failed. Username or email may already exist.";
         }

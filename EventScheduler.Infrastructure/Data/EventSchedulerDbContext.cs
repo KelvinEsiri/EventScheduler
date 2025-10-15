@@ -43,7 +43,7 @@ public class EventSchedulerDbContext : DbContext
             entity.HasOne(e => e.User)
                 .WithMany(u => u.Events)
                 .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(e => e.Category)
                 .WithMany(c => c.Events)
@@ -59,8 +59,8 @@ public class EventSchedulerDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Description).HasMaxLength(500);
 
-            entity.HasOne<User>()
-                .WithMany()
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.EventCategories)
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

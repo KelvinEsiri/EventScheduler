@@ -11,7 +11,7 @@ builder.Services.AddRazorComponents()
 // Configure HttpClient for API calls
 builder.Services.AddScoped(sp => new HttpClient 
 { 
-    BaseAddress = new Uri(builder.Configuration["ApiSettings:BaseUrl"] ?? "http://localhost:5001") 
+    BaseAddress = new Uri(builder.Configuration["ApiSettings:BaseUrl"] ?? "http://localhost:5006") 
 });
 
 // Register custom services
@@ -19,9 +19,9 @@ builder.Services.AddScoped<ApiService>();
 builder.Services.AddScoped<AuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => provider.GetRequiredService<AuthStateProvider>());
 
-// Add authentication and authorization
-builder.Services.AddAuthorization();
+// Add authentication and authorization - Order matters!
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 

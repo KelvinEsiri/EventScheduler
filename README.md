@@ -16,8 +16,8 @@ A modern event scheduling application built with C# .NET 9.0 and Blazor, followi
 
 ### Backend
 - ASP.NET Core 9.0 Web API
-- Entity Framework Core 9.0
-- SQLite Database
+- Entity Framework Core 9.0 with Migrations
+- SQL Server (LocalDB for dev, Express/Full for production)
 - JWT Bearer Authentication
 - Serilog for structured logging
 
@@ -136,13 +136,16 @@ The application sends email notifications for:
 
 ## Database
 
-- **Development**: SQLite (`eventscheduler.db`)
-- **Production**: Can be switched to SQL Server or PostgreSQL
+- **Development**: SQL Server LocalDB (`EventSchedulerDb_Dev`)
+- **Production**: SQL Server Express or Full Edition
+- **ORM**: Entity Framework Core 9.0 with Code-First Migrations
 
 ### Schema
 - **Users** - User accounts and authentication
 - **Events** - Event details and scheduling
 - **EventCategories** - Event categorization (optional)
+
+For detailed database setup and migration instructions, see [DATABASE_SETUP.md](docs/DATABASE_SETUP.md)
 
 ## Configuration
 
@@ -150,7 +153,7 @@ The application sends email notifications for:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Data Source=eventscheduler.db"
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=EventSchedulerDb;Trusted_Connection=true;MultipleActiveResultSets=true;TrustServerCertificate=true"
   },
   "Jwt": {
     "Key": "Your-Secret-Key-Here",
@@ -181,12 +184,13 @@ dotnet build
 dotnet test
 ```
 
-### Database Migrations (if needed)
+### Database Migrations
 ```bash
 cd EventScheduler.Infrastructure
-dotnet ef migrations add InitialCreate
-dotnet ef database update
+dotnet ef migrations add MigrationName --startup-project ../EventScheduler.Api
+dotnet ef database update --startup-project ../EventScheduler.Api
 ```
+*Note: Migrations are automatically applied on API startup*
 
 ## Contributing
 

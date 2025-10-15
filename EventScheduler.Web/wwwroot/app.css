@@ -58,3 +58,104 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* Blazor Reconnection UI Styling */
+#components-reconnect-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: none;
+}
+
+#components-reconnect-modal.components-reconnect-show {
+    display: block;
+}
+
+#components-reconnect-modal.components-reconnect-hide {
+    display: none;
+}
+
+#components-reconnect-modal .reconnect-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+#components-reconnect-modal .reconnect-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+}
+
+#components-reconnect-modal .reconnect-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #0d6efd;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#components-reconnect-modal .reconnect-status {
+    font-size: 1.1rem;
+    color: #333;
+}
+
+#components-reconnect-modal .reconnect-status span {
+    display: none;
+}
+
+#components-reconnect-modal.components-reconnect-show .reconnect-show {
+    display: block;
+    color: #0d6efd;
+    font-weight: 500;
+}
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-failed {
+    display: block;
+    color: #dc3545;
+    font-weight: 500;
+}
+
+#components-reconnect-modal.components-reconnect-rejected .reconnect-rejected {
+    display: block;
+    color: #dc3545;
+    font-weight: 500;
+}
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-icon,
+#components-reconnect-modal.components-reconnect-rejected .reconnect-icon {
+    border-top-color: #dc3545;
+    animation: none;
+}
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-icon::before,
+#components-reconnect-modal.components-reconnect-rejected .reconnect-icon::before {
+    content: "✕";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    color: #dc3545;
+}

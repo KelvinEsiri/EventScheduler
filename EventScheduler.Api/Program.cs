@@ -1,11 +1,11 @@
 using EventScheduler.Api.Middleware;
+using EventScheduler.Infrastructure.Data;
+using EventScheduler.Infrastructure.Repositories;
 using EventScheduler.Application.Interfaces.Repositories;
 using EventScheduler.Application.Interfaces.Services;
 using EventScheduler.Application.Services;
-using EventScheduler.Infrastructure.Data;
-using EventScheduler.Infrastructure.Repositories;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
@@ -26,7 +26,7 @@ builder.Services.AddOpenApi();
 
 // Configure Database
 builder.Services.AddDbContext<EventSchedulerDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=eventscheduler.db"));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Register Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -67,7 +67,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowWebApp",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5070", "https://localhost:5071")
+            policy.WithOrigins("http://localhost:5292", "https://localhost:7248")
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -79,6 +79,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.MapOpenApi();
 }
 
@@ -88,19 +89,36 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseSerilogRequestLogging();
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowWebApp");
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
-// Create database if it doesn't exist
-using (var scope = app.Services.CreateScope())
+// Add a simple health check endpoint
+app.MapGet("/", () => "EventScheduler API is running!");
+
+// Database initialization with migrations
+try
 {
-    var db = scope.ServiceProvider.GetRequiredService<EventSchedulerDbContext>();
-    db.Database.EnsureCreated();
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<EventSchedulerDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        logger.LogInformation("Applying database migrations...");
+        db.Database.Migrate();
+        logger.LogInformation("Database migrations applied successfully!");
+        
+        var userCount = db.Users.Count();
+        logger.LogInformation($"Database ready. Current users: {userCount}");
+    }
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "An error occurred while migrating the database.");
+    throw;
 }
 
+Console.WriteLine("Starting EventScheduler API on http://localhost:5005");
 app.Run();

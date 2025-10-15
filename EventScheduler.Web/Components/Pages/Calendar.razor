@@ -2,10 +2,12 @@
 @using EventScheduler.Application.DTOs.Request
 @using EventScheduler.Application.DTOs.Response
 @using EventScheduler.Web.Services
-@using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@rendermode InteractiveServer
 @inject ApiService ApiService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>My Calendar - Event Scheduler</PageTitle>
 
@@ -143,10 +145,56 @@
     private bool isEditMode = false;
     private int editEventId = 0;
     private CreateEventRequest eventRequest = new() { Title = "", StartDate = DateTime.Now, EndDate = DateTime.Now.AddHours(1) };
+    private bool hasCheckedAuth = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasCheckedAuth)
+        {
+            hasCheckedAuth = true;
+            
+            // Re-check authentication after render (when JS interop is available)
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                NavigationManager.NavigateTo("/login");
+                return;
+            }
+            
+            // Get token from auth state and set it in ApiService
+            var token = user.FindFirst("token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+            {
+                ApiService.SetToken(token);
+            }
+            
+            await LoadEvents();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadEvents();
+        // Initial check without JS interop (will succeed if already authenticated in memory)
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            hasCheckedAuth = true;
+            
+            // Get token from auth state and set it in ApiService
+            var token = user.FindFirst("token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+            {
+                ApiService.SetToken(token);
+            }
+            
+            await LoadEvents();
+        }
+        // If not authenticated here, we'll check again in OnAfterRenderAsync when JS is available
     }
 
     private async Task LoadEvents()
@@ -236,16 +284,18 @@
 
     private async Task DeleteEvent(int id)
     {
-        if (confirm("Are you sure you want to delete this event?"))
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this event?");
+        if (confirmed)
         {
             try
             {
                 await ApiService.DeleteEventAsync(id);
                 await LoadEvents();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Handle error
+                // Handle error - could add error message display
+                Console.WriteLine($"Error deleting event: {ex.Message}");
             }
         }
     }
@@ -265,6 +315,4 @@
     {
         NavigationManager.NavigateTo("/logout");
     }
-
-    private bool confirm(string message) => true; // Simplified for demo
 }

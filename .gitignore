@@ -29,6 +29,11 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# .NET Core build artifacts
+**/bin/
+**/obj/
+**/out/
+
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 
@@ -108,6 +113,17 @@ _pkginfo.txt
 # but keep track of directories ending in .cache
 !?*.[Cc]ache/
 
+# .NET Build artifacts
+project.assets.json
+project.nuget.cache
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.g.targets
+staticwebassets.build.json
+staticwebassets.build.json.cache
+staticwebassets.development.json
+*.csproj.EntityFrameworkCore.targets
+
 # Others
 ClientBin/
 ~$*
@@ -128,3 +144,20 @@ node_modules/
 
 # macOS
 .DS_Store
+
+# Blazor specific
+**/wwwroot/css/site.css
+**/wwwroot/lib/
+blazor.boot.json
+
+# Local development database
+*.db
+eventscheduler.db
+
+# Log files
+*.log
+logs/
+**/logs/
+
+# Compressed assets
+**/compressed/

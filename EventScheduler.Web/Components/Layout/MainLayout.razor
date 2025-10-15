@@ -1,23 +1,112 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="d-flex flex-column min-vh-100">
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-calendar-event me-2"></i>
+                Event Scheduler
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    @if (isAuthenticated)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" href="/calendar">
+                                <i class="bi bi-calendar3"></i> My Calendar
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/calendar-view">
+                                <i class="bi bi-calendar-week"></i> Calendar View
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <span class="nav-link">
+                                <i class="bi bi-person-circle"></i> @userName
+                            </span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logout">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </a>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/login">
+                                <i class="bi bi-box-arrow-in-right"></i> Login
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/register">
+                                <i class="bi bi-person-plus"></i> Register
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
         </div>
+    </nav>
 
-        <article class="content px-4">
-            @Body
-        </article>
+    <!-- Main Content -->
+    <main class="flex-grow-1">
+        @Body
     </main>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-auto">
+        <div class="container text-center">
+            <p class="mb-0 text-muted">
+                &copy; @DateTime.Now.Year Event Scheduler. All rights reserved.
+            </p>
+        </div>
+    </footer>
 </div>
 
+<!-- Blazor Error UI -->
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+<!-- Blazor Reconnection UI (built-in) -->
+<div id="components-reconnect-modal" class="components-reconnect-hide" data-nosnippet>
+    <div class="reconnect-overlay"></div>
+    <div class="reconnect-modal">
+        <div class="reconnect-content">
+            <div class="reconnect-icon"></div>
+            <div class="reconnect-status">
+                <span class="reconnect-show">Reconnecting...</span>
+                <span class="reconnect-failed">Connection failed. Refresh the page to restore functionality.</span>
+                <span class="reconnect-rejected">Connection rejected. Please reload the page.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+    private string userName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+        userName = user.Identity?.Name ?? string.Empty;
+    }
+}
