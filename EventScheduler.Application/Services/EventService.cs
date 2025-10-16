@@ -7,6 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace EventScheduler.Application.Services;
 
+/// <summary>
+/// Service for managing event operations
+/// Handles CRUD operations, invitations, and notifications for events
+/// </summary>
 public class EventService : IEventService
 {
     private readonly IEventRepository _eventRepository;
@@ -29,6 +33,14 @@ public class EventService : IEventService
         _notificationService = notificationService;
     }
 
+    /// <summary>
+    /// Creates a new event with optional invitations
+    /// Validates date ranges and sends notification emails to invitees
+    /// </summary>
+    /// <param name="userId">ID of the user creating the event</param>
+    /// <param name="request">Event creation request with details and invitations</param>
+    /// <returns>The created event details</returns>
+    /// <exception cref="InvalidOperationException">Thrown when end date is before start date</exception>
     public async Task<EventResponse> CreateEventAsync(int userId, CreateEventRequest request)
     {
         _logger.LogInformation("Creating event '{Title}' for user {UserId}", request.Title, userId);
