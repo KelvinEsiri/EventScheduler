@@ -83,24 +83,608 @@
 - Circuit-scoped authentication state (Blazor Server)
 - Automatic token injection in API requests
 
-### **Authentication Flow**
+---
+
+## 🔄 Complete Authentication Flow
+
+### **1. Initial Login Process**
 
 ```
-1. User Login
-   ↓
-2. POST /api/auth/login (username, password)
-   ↓
-3. Server validates credentials
-   ↓
-4. Generate JWT token with claims (username, userId)
-   ↓
-5. Return token to client
-   ↓
-6. AuthStateProvider.MarkUserAsAuthenticated()
-   ↓
-7. ApiService.SetToken() → All requests include token
-   ↓
-8. Navigate to protected page
+┌─────────────┐
+│   User      │
+│ (Browser)   │
+└──────┬──────┘
+       │ 1. Navigate to /login
+       ↓
+┌─────────────────────────────────────────┐
+│         Login.razor (Frontend)          │
+│  - Username/Password input fields       │
+│  - Client-side validation               │
+└──────┬──────────────────────────────────┘
+       │ 2. Click "Login" button
+       ↓
+┌─────────────────────────────────────────┐
+│      ApiService.PostAsync()             │
+│  - Sends POST /api/auth/login           │
+│  - Body: { username, password }         │
+└──────┬──────────────────────────────────┘
+       │ 3. HTTP Request
+       ↓
+┌─────────────────────────────────────────┐
+│  AuthController.Login() (Backend API)   │
+│  - Receives credentials                 │
+└──────┬──────────────────────────────────┘
+       │ 4. Validate request
+       ↓
+┌─────────────────────────────────────────┐
+│     AuthService.AuthenticateAsync()     │
+│  - Find user by username                │
+│  - Verify password hash (PBKDF2)        │
+└──────┬──────────────────────────────────┘
+       │ 5. Validation result
+       ├─────────────┬───────────────┐
+       ↓             ↓               ↓
+   ✅ Valid      ❌ Invalid       ❌ User not found
+       │             │               │
+       │             └───────┬───────┘
+       │                     ↓
+       │            Return 401 Unauthorized
+       │            { "message": "Invalid credentials" }
+       │                     │
+       │                     ↓
+       │            Login.razor catches error
+       │            Shows error message
+       │            User stays on /login
+       │
+       ↓
+   Generate JWT Token
+   - Claims: username, userId
+   - Expiration: 8 hours
+   - Signed with secret key
+       │
+       ↓
+   Return 200 OK
+   {
+     "token": "eyJhbGc...",
+     "username": "john",
+     "email": "john@example.com",
+     "fullName": "John Doe"
+   }
+       │
+       ↓
+┌─────────────────────────────────────────┐
+│     Login.razor receives response       │
+│  1. AuthStateProvider.MarkUserAsAuth()  │
+│     - Stores username, userId, token    │
+│     - Creates ClaimsPrincipal           │
+│     - Notifies auth state changed       │
+│  2. ApiService.SetToken(token)          │
+│     - Sets Authorization header         │
+│  3. NavigationManager.NavigateTo("/")   │
+└──────┬──────────────────────────────────┘
+       │
+       ↓
+   User redirected to Home
+   NavMenu shows "Welcome, John"
+   Protected links become visible
+```
+
+---
+
+### **2. Detailed Implementation Components**
+
+#### **A. AuthStateProvider (Circuit-Scoped Service)**
+
+**File:** `NasosoTax.Web/Services/AuthStateProvider.cs`
+
+**Purpose:** Manages authentication state for the current user session (SignalR circuit)
+
+**Key Methods:**
+
+```csharp
+public class AuthStateProvider : AuthenticationStateProvider
+{
+    private ClaimsPrincipal _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+    private string? _token;
+    private string? _username;
+    private int? _userId;
+
+    // Called when user logs in
+    public void MarkUserAsAuthenticated(string username, int userId, string token)
+    {
+        _username = username;
+        _userId = userId;
+        _token = token;
+        
+        var identity = new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Name, username),
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString())
+        }, "jwt");
+        
+        _currentUser = new ClaimsPrincipal(identity);
+        
+        // Notify all components that auth state changed
+        NotifyAuthenticationStateChanged(
+            Task.FromResult(new AuthenticationState(_currentUser))
+        );
+    }
+
+    // Called when user logs out or session expires
+    public void MarkUserAsLoggedOut()
+    {
+        _username = null;
+        _userId = null;
+        _token = null;
+        _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+        
+        NotifyAuthenticationStateChanged(
+            Task.FromResult(new AuthenticationState(_currentUser))
+        );
+    }
+
+    // Check if user is authenticated
+    public bool IsAuthenticated()
+    {
+        return _currentUser?.Identity?.IsAuthenticated ?? false;
+    }
+
+    // Get stored JWT token
+    public string? GetToken() => _token;
+    
+    // Get current username
+    public string? GetUsername() => _username;
+    
+    // Get current userId
+    public int? GetUserId() => _userId;
+
+    // Required by AuthenticationStateProvider
+    public override Task<AuthenticationState> GetAuthenticationStateAsync()
+    {
+        return Task.FromResult(new AuthenticationState(_currentUser));
+    }
+}
+```
+
+**Scope:** Circuit-scoped (one instance per user session/browser tab)
+
+**Lifecycle:**
+- Created when user connects (SignalR circuit established)
+- Persists for the duration of the session
+- Destroyed when circuit disconnects (browser closed/navigated away)
+
+---
+
+#### **B. ApiService (HTTP Client Wrapper)**
+
+**File:** `NasosoTax.Web/Services/ApiService.cs`
+
+**Purpose:** Centralized HTTP communication with automatic token injection
+
+**Key Methods:**
+
+```csharp
+public class ApiService
+{
+    private readonly HttpClient _httpClient;
+    private readonly AuthStateProvider _authStateProvider;
+
+    // Set token in HTTP client headers
+    public void SetToken(string token)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    // Clear token from headers
+    public void ClearToken()
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = null;
+    }
+
+    // Ensure token is present before making requests
+    private void EnsureToken()
+    {
+        var token = _authStateProvider.GetToken();
+        if (!string.IsNullOrEmpty(token))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = 
+                new AuthenticationHeaderValue("Bearer", token);
+        }
+    }
+
+    // Generic GET request with automatic auth handling
+    public async Task<T?> GetAsync<T>(string url)
+    {
+        try
+        {
+            EnsureToken(); // Inject token into header
+            
+            var response = await _httpClient.GetAsync(url);
+            
+            // Handle 401 Unauthorized
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new UnauthorizedAccessException(
+                    "Session expired. Please log in again."
+                );
+            }
+            
+            if (!response.IsSuccessStatusCode)
+                return default;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<T>(json, 
+                new JsonSerializerOptions { 
+                    PropertyNameCaseInsensitive = true 
+                });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Re-throw to let calling component handle redirect
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during GET request");
+            throw;
+        }
+    }
+
+    // Similar implementation for PostAsync, PutAsync, DeleteAsync
+}
+```
+
+**Flow:**
+1. Component calls `ApiService.GetAsync()`
+2. `EnsureToken()` injects JWT into `Authorization: Bearer {token}` header
+3. Makes HTTP request to API
+4. If 401 response → throws `UnauthorizedAccessException`
+5. Component catches exception → redirects to login
+
+---
+
+#### **C. Protected Page Pattern**
+
+**Example:** `Reports.razor`
+
+```csharp
+@page "/reports"
+@inject AuthStateProvider AuthStateProvider
+@inject ApiService ApiService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Tax Reports</PageTitle>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Protected content here -->
+}
+
+@code {
+    private bool isLoading = true;
+    private List<YearlySummary>? summaries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 🔒 AUTHENTICATION CHECK - First line of defense
+        if (!AuthStateProvider.IsAuthenticated())
+        {
+            // User not logged in → redirect to login
+            NavigationManager.NavigateTo("/login", forceLoad: true);
+            return; // Stop execution
+        }
+
+        try
+        {
+            // User is authenticated → load data
+            await LoadReports();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // 🔒 Token expired or invalid during API call
+            Console.WriteLine($"Auth error: {ex.Message}");
+            NavigationManager.NavigateTo("/login", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            // Handle other errors
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadReports()
+    {
+        // This throws UnauthorizedAccessException if token invalid
+        summaries = await ApiService.GetAsync<List<YearlySummary>>(
+            "/api/reports/yearly-summaries"
+        );
+    }
+}
+```
+
+**Two-Layer Protection:**
+1. **Client-side check:** `IsAuthenticated()` - prevents unnecessary API calls
+2. **Server-side validation:** API validates JWT - prevents unauthorized access
+
+---
+
+#### **D. API Authentication Setup**
+
+**File:** `NasosoTax.Api/Program.cs`
+
+```csharp
+// JWT Configuration
+var jwtKey = builder.Configuration["Jwt:Key"];
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,      // ⏰ Checks expiration
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtKey)
+            ),
+            ClockSkew = TimeSpan.Zero  // No grace period
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// In middleware pipeline
+app.UseAuthentication();  // Validates JWT tokens
+app.UseAuthorization();   // Checks [Authorize] attributes
+```
+
+**Protected Controller Example:**
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]  // 🔒 Requires valid JWT token
+public class ReportsController : ControllerBase
+{
+    [HttpGet("yearly-summaries")]
+    public async Task<IActionResult> GetYearlySummaries()
+    {
+        // Get userId from JWT claims
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim))
+            return Unauthorized();
+            
+        var userId = int.Parse(userIdClaim);
+        
+        // Fetch user-specific data
+        var summaries = await _reportService.GetYearlySummariesAsync(userId);
+        return Ok(summaries);
+    }
+}
+```
+
+**What happens when JWT is invalid:**
+1. `[Authorize]` attribute checks token
+2. Token validation fails (expired, invalid signature, wrong issuer, etc.)
+3. Returns **401 Unauthorized** automatically
+4. ApiService catches 401 → throws `UnauthorizedAccessException`
+5. Page component catches exception → redirects to login
+
+---
+
+### **3. Authentication Failure Scenarios & Redirects**
+
+#### **Scenario 1: No Token (User Not Logged In)**
+
+```
+User navigates to /reports directly
+       ↓
+Reports.razor.OnInitializedAsync()
+       ↓
+AuthStateProvider.IsAuthenticated() returns FALSE
+       ↓
+NavigationManager.NavigateTo("/login", forceLoad: true)
+       ↓
+User sees login page
+No API call made (prevented at UI level)
+```
+
+**Code Flow:**
+```csharp
+if (!AuthStateProvider.IsAuthenticated())
+{
+    NavigationManager.NavigateTo("/login", forceLoad: true);
+    return; // Stops execution
+}
+```
+
+---
+
+#### **Scenario 2: Expired Token (Session Timeout)**
+
+```
+User logged in 9 hours ago (token expired after 8 hours)
+User navigates to /reports
+       ↓
+AuthStateProvider.IsAuthenticated() returns TRUE
+  (Circuit still has old token in memory)
+       ↓
+Component attempts to load data
+       ↓
+ApiService.GetAsync("/api/reports/yearly-summaries")
+  EnsureToken() → Injects expired token
+       ↓
+API receives request with expired token
+       ↓
+JWT middleware validates token
+  Token lifetime check FAILS (expired)
+       ↓
+Returns 401 Unauthorized
+       ↓
+ApiService catches 401
+  throws UnauthorizedAccessException
+       ↓
+Component catches UnauthorizedAccessException
+  NavigationManager.NavigateTo("/login", forceLoad: true)
+       ↓
+User redirected to login page
+Error message: "Session expired. Please log in again."
+```
+
+**Code Flow:**
+```csharp
+try
+{
+    var data = await ApiService.GetAsync<Data>("/api/endpoint");
+}
+catch (UnauthorizedAccessException ex)
+{
+    // Session expired during API call
+    NavigationManager.NavigateTo("/login", forceLoad: true);
+}
+```
+
+---
+
+#### **Scenario 3: Invalid Token (Tampered or Corrupted)**
+
+```
+User manually modifies token in browser dev tools
+OR
+Token corrupted during transmission
+       ↓
+API receives request with invalid token
+       ↓
+JWT middleware validates signature
+  Signature verification FAILS
+       ↓
+Returns 401 Unauthorized
+       ↓
+Same flow as expired token scenario
+       ↓
+User redirected to /login
+```
+
+---
+
+#### **Scenario 4: Token Validation Failure (Wrong Issuer/Audience)**
+
+```
+API configuration changed (different JWT secret)
+User has old token from previous deployment
+       ↓
+API receives request
+       ↓
+JWT middleware validates token
+  Issuer/Audience/Key mismatch
+       ↓
+Returns 401 Unauthorized
+       ↓
+User redirected to /login
+```
+
+---
+
+### **4. Why `forceLoad: true`?**
+
+```csharp
+NavigationManager.NavigateTo("/login", forceLoad: true);
+```
+
+**Without `forceLoad: true`:**
+- Blazor navigates within the current circuit
+- Old authentication state might persist
+- Component state not fully reset
+
+**With `forceLoad: true`:**
+- Forces full page reload
+- Destroys current SignalR circuit
+- Creates new circuit with fresh state
+- Ensures clean authentication state
+
+**Critical for:**
+- Logout (must clear all state)
+- Session expiration (prevent stale data)
+- Authentication failures (ensure clean slate)
+
+---
+
+### **5. Complete Login Flow Diagram**
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    USER ACTIONS                      │
+└───────────────────┬─────────────────────────────────┘
+                    │
+     ┌──────────────┴──────────────┐
+     ↓                             ↓
+┌─────────┐                  ┌──────────┐
+│  Login  │                  │ Navigate │
+│  Page   │                  │ to Page  │
+└────┬────┘                  └────┬─────┘
+     │                            │
+     │ Submit credentials         │ OnInitializedAsync()
+     ↓                            ↓
+┌─────────────────┐      ┌──────────────────┐
+│  ApiService     │      │ Auth Check       │
+│  POST /login    │      │ IsAuthenticated? │
+└────┬────────────┘      └────┬─────────────┘
+     │                        │
+     │                   ┌────┴────┐
+     │                   ↓         ↓
+     │               [TRUE]    [FALSE]
+     │                   │         │
+     ↓                   │         ↓
+┌─────────────┐         │    Redirect /login
+│ API Backend │         │
+│ Validates   │         │
+└────┬────────┘         │
+     │                  │
+┌────┴────┐             │
+↓         ↓             │
+[VALID] [INVALID]       │
+  │         │           │
+  │         └──────┐    │
+  ↓                ↓    ↓
+Generate        401   Load
+JWT Token      Error  Data
+  │                │    │
+  ↓                │    ↓
+Return Token       │   API Call
+  │                │    │
+  ↓                │    ├────────┐
+Store in           │    ↓        ↓
+AuthState          │  [200]   [401]
+  │                │    │        │
+  ↓                │    ↓        ↓
+Set Header         │  Show    Session
+Bearer Token       │  Data    Expired
+  │                │           │
+  ↓                │           │
+Navigate Home      │           │
+  │                │           │
+  └────────────────┴───────────┘
+                   ↓
+             Redirect /login
 ```
 
 ### **Login Redirect Scenarios** 🚨
