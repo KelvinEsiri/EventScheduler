@@ -6,12 +6,18 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
-// Helper class for deserializing error responses
+/// <summary>
+/// Helper class for deserializing API error responses
+/// </summary>
 public class ErrorResponse
 {
     public string? Error { get; set; }
 }
 
+/// <summary>
+/// Service for communicating with the EventScheduler API
+/// Handles all HTTP requests to the backend API including authentication and event management
+/// </summary>
 public class ApiService
 {
     private readonly HttpClient _httpClient;
@@ -24,19 +30,32 @@ public class ApiService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Sets the authentication token for subsequent API requests
+    /// </summary>
+    /// <param name="token">JWT bearer token</param>
     public void SetToken(string token)
     {
         _token = token;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
+    /// <summary>
+    /// Clears the authentication token (used during logout)
+    /// </summary>
     public void ClearToken()
     {
         _token = null;
         _httpClient.DefaultRequestHeaders.Authorization = null;
     }
 
-    // Auth endpoints
+    #region Authentication Endpoints
+
+    /// <summary>
+    /// Registers a new user account
+    /// </summary>
+    /// <param name="request">Registration details including username, email, and password</param>
+    /// <returns>Login response with user details and authentication token</returns>
     public async Task<LoginResponse?> RegisterAsync(RegisterRequest request)
     {
         try
@@ -52,6 +71,11 @@ public class ApiService
         }
     }
 
+    /// <summary>
+    /// Authenticates a user and returns an authentication token
+    /// </summary>
+    /// <param name="request">Login credentials (username and password)</param>
+    /// <returns>Login response with user details and authentication token</returns>
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
         try
@@ -67,7 +91,14 @@ public class ApiService
         }
     }
 
-    // Event endpoints
+    #endregion
+
+    #region Event Management Endpoints
+
+    /// <summary>
+    /// Retrieves all events for the authenticated user
+    /// </summary>
+    /// <returns>List of user's events</returns>
     public async Task<List<EventResponse>> GetAllEventsAsync()
     {
         try
@@ -81,6 +112,11 @@ public class ApiService
         }
     }
 
+    /// <summary>
+    /// Retrieves a specific event by its ID
+    /// </summary>
+    /// <param name="id">The event ID</param>
+    /// <returns>The event details or null if not found</returns>
     public async Task<EventResponse?> GetEventByIdAsync(int id)
     {
         try
@@ -94,6 +130,12 @@ public class ApiService
         }
     }
 
+    /// <summary>
+    /// Retrieves all events within a specified date range
+    /// </summary>
+    /// <param name="startDate">Start date of the range</param>
+    /// <param name="endDate">End date of the range</param>
+    /// <returns>List of events within the date range</returns>
     public async Task<List<EventResponse>> GetEventsByDateRangeAsync(DateTime startDate, DateTime endDate)
     {
         try
@@ -239,4 +281,6 @@ public class ApiService
             throw;
         }
     }
+
+    #endregion
 }
