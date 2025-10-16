@@ -4,7 +4,7 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageTitle>Event Scheduler</PageTitle>
+<PageTitle>Event Scheduler - Organize Your Schedule</PageTitle>
 
 <style>
     .home-container {
@@ -21,80 +21,89 @@
     }
 
     .home-title {
-        font-size: clamp(2rem, 5vw, 3.5rem);
-        font-weight: 700;
+        font-size: clamp(2.5rem, 6vw, 4rem);
+        font-weight: 800;
         margin-bottom: 1.5rem;
         text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        line-height: 1.2;
     }
 
     .home-subtitle {
-        font-size: clamp(1rem, 2.5vw, 1.25rem);
+        font-size: clamp(1.125rem, 2.5vw, 1.5rem);
         margin-bottom: 3rem;
         opacity: 0.95;
         max-width: 50rem;
         margin-left: auto;
         margin-right: auto;
         line-height: 1.6;
+        font-weight: 300;
     }
 
     .features-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-        gap: 1.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+        gap: 2rem;
         margin-bottom: 3rem;
+        max-width: 70rem;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     .feature-card {
         background: rgba(255, 255, 255, 0.95);
-        border-radius: 1rem;
-        padding: 2rem 1.5rem;
+        border-radius: 1.25rem;
+        padding: 2.5rem 2rem;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         transition: transform 0.3s, box-shadow 0.3s;
+        text-align: left;
     }
 
     .feature-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        transform: translateY(-10px);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
     }
 
     .feature-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
+        font-size: 3.5rem;
+        margin-bottom: 1.5rem;
+        display: inline-block;
     }
 
     .feature-card h5 {
-        color: #374151;
-        font-weight: 600;
-        margin-bottom: 0.75rem;
-        font-size: 1.25rem;
+        color: #1f2937;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        font-size: 1.5rem;
     }
 
     .feature-card p {
-        color: #6b7280;
-        font-size: 0.9375rem;
-        line-height: 1.6;
+        color: #4b5563;
+        font-size: 1rem;
+        line-height: 1.7;
         margin: 0;
     }
 
     .action-buttons {
         display: flex;
         flex-wrap: wrap;
-        gap: 1rem;
+        gap: 1.25rem;
         justify-content: center;
         align-items: center;
+        margin-top: 3rem;
     }
 
     .home-btn {
-        padding: 1rem 2rem;
-        border-radius: 0.75rem;
+        padding: 1.125rem 2.5rem;
+        border-radius: 0.875rem;
         font-size: 1.125rem;
         font-weight: 600;
         text-decoration: none;
         transition: all 0.3s;
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.625rem;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        border: none;
     }
 
     .home-btn-primary {
@@ -105,7 +114,7 @@
     .home-btn-primary:hover {
         background: #f3f4f6;
         transform: translateY(-3px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     }
 
     .home-btn-outline {
@@ -115,7 +124,7 @@
     }
 
     .home-btn-outline:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.15);
         transform: translateY(-3px);
     }
 
@@ -127,6 +136,36 @@
     .home-btn-success:hover {
         background: #059669;
         transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    }
+
+    .stats-section {
+        margin: 4rem auto 3rem;
+        max-width: 60rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: 2rem;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 1rem;
+        opacity: 0.9;
+        font-weight: 500;
     }
 
     /* Responsive Design */
@@ -137,6 +176,12 @@
 
         .features-grid {
             grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .stats-section {
+            grid-template-columns: 1fr;
+            gap: 1rem;
         }
 
         .action-buttons {
@@ -147,6 +192,7 @@
         .home-btn {
             width: 100%;
             justify-content: center;
+            padding: 1rem 2rem;
         }
     }
 
@@ -159,10 +205,10 @@
 
 <div class="home-container">
     <div class="home-content">
-        <h1 class="home-title">Welcome to Event Scheduler</h1>
+        <h1 class="home-title">📅 Event Scheduler</h1>
         <p class="home-subtitle">
             Organize your life with our powerful event scheduling application.
-            Create, manage, and track your events effortlessly with an intuitive interface.
+            Create, manage, and track your events effortlessly with an intuitive interface designed for productivity.
         </p>
 
         <div class="features-grid">
@@ -170,24 +216,59 @@
                 <div class="feature-icon">
                     <i class="bi bi-calendar-event text-primary"></i>
                 </div>
-                <h5>Easy Scheduling</h5>
-                <p>Create and manage events with a simple, intuitive interface that works on all devices</p>
+                <h5>Smart Scheduling</h5>
+                <p>Create and manage events with drag-and-drop, multiple views, and real-time updates. Never miss an important date again.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">
                     <i class="bi bi-globe text-success"></i>
                 </div>
                 <h5>Public Events</h5>
-                <p>Discover and share public events with the community and stay connected</p>
+                <p>Discover and share public events with the community. Stay connected with what's happening around you.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">
                     <i class="bi bi-shield-check text-info"></i>
                 </div>
                 <h5>Secure & Private</h5>
-                <p>Your data is protected with industry-standard security and encryption</p>
+                <p>Your data is protected with industry-standard security, JWT authentication, and encrypted communications.</p>
             </div>
         </div>
+
+        @if (isAuthenticated)
+        {
+            <div class="stats-section">
+                <div class="stat-card">
+                    <div class="stat-value">✓</div>
+                    <div class="stat-label">You're logged in</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">∞</div>
+                    <div class="stat-label">Unlimited Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">24/7</div>
+                    <div class="stat-label">Always Available</div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="stats-section">
+                <div class="stat-card">
+                    <div class="stat-value">Free</div>
+                    <div class="stat-label">No Cost Ever</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">∞</div>
+                    <div class="stat-label">Unlimited Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">24/7</div>
+                    <div class="stat-label">Always Available</div>
+                </div>
+            </div>
+        }
 
         <div class="action-buttons">
             <a href="/public-events" class="home-btn home-btn-success">
@@ -209,7 +290,7 @@
             {
                 <a href="/register" class="home-btn home-btn-primary">
                     <i class="bi bi-person-plus"></i>
-                    Get Started
+                    Get Started Free
                 </a>
                 <a href="/login" class="home-btn home-btn-outline">
                     <i class="bi bi-box-arrow-in-right"></i>

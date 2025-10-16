@@ -13,7 +13,11 @@
 <div class="auth-container">
     <div class="auth-card">
         <div class="auth-card-header">
-            <h3>Create Account</h3>
+            <h3>
+                <i class="bi bi-person-plus"></i>
+                Create Account
+            </h3>
+            <p class="auth-card-subtitle">Join Event Scheduler today</p>
         </div>
 
         <div class="auth-card-body">
@@ -33,7 +37,8 @@
                         <i class="bi bi-person-badge"></i>
                         Full Name
                     </label>
-                    <InputText id="fullname" class="form-control" @bind-Value="registerRequest.FullName" placeholder="Enter your full name" />
+                    <InputText id="fullname" class="form-control" @bind-Value="registerRequest.FullName" 
+                               placeholder="Enter your full name" autocomplete="name" />
                     <ValidationMessage For="@(() => registerRequest.FullName)" />
                 </div>
 
@@ -42,7 +47,8 @@
                         <i class="bi bi-person"></i>
                         Username
                     </label>
-                    <InputText id="username" class="form-control" @bind-Value="registerRequest.Username" placeholder="Choose a username" />
+                    <InputText id="username" class="form-control" @bind-Value="registerRequest.Username" 
+                               placeholder="Choose a username" autocomplete="username" />
                     <ValidationMessage For="@(() => registerRequest.Username)" />
                 </div>
 
@@ -51,7 +57,8 @@
                         <i class="bi bi-envelope"></i>
                         Email
                     </label>
-                    <InputText id="email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter your email" />
+                    <InputText id="email" type="email" class="form-control" @bind-Value="registerRequest.Email" 
+                               placeholder="Enter your email" autocomplete="email" />
                     <ValidationMessage For="@(() => registerRequest.Email)" />
                 </div>
 
@@ -60,9 +67,43 @@
                         <i class="bi bi-lock"></i>
                         Password
                     </label>
-                    <InputText id="password" type="password" class="form-control" @bind-Value="registerRequest.Password" placeholder="Choose a strong password" />
+                    <InputText id="password" type="password" class="form-control" @bind-Value="registerRequest.Password" 
+                               @oninput="OnPasswordInput" placeholder="Choose a strong password" />
+                    
+                    @if (!string.IsNullOrEmpty(registerRequest.Password))
+                    {
+                        <div class="password-strength-indicator">
+                            <div class="strength-bar-container">
+                                <div class="strength-bar @GetPasswordStrengthClass()" style="width: @(passwordStrength * 25)%"></div>
+                            </div>
+                            <small class="strength-text @GetPasswordStrengthClass()">
+                                <i class="bi bi-shield-@(passwordStrength >= 3 ? "check" : "exclamation")"></i>
+                                @GetPasswordStrengthText()
+                            </small>
+                        </div>
+                    }
+                    
                     <small class="form-text">
-                        Password must be at least 8 characters long
+                        <i class="bi bi-info-circle"></i>
+                        Password must contain:
+                        <ul class="password-requirements">
+                            <li class="@(registerRequest.Password?.Length >= 8 ? "met" : "")">
+                                <i class="bi bi-@(registerRequest.Password?.Length >= 8 ? "check-circle-fill" : "circle")"></i>
+                                At least 8 characters
+                            </li>
+                            <li class="@(HasUpperCase(registerRequest.Password) ? "met" : "")">
+                                <i class="bi bi-@(HasUpperCase(registerRequest.Password) ? "check-circle-fill" : "circle")"></i>
+                                One uppercase letter
+                            </li>
+                            <li class="@(HasLowerCase(registerRequest.Password) ? "met" : "")">
+                                <i class="bi bi-@(HasLowerCase(registerRequest.Password) ? "check-circle-fill" : "circle")"></i>
+                                One lowercase letter
+                            </li>
+                            <li class="@(HasDigit(registerRequest.Password) ? "met" : "")">
+                                <i class="bi bi-@(HasDigit(registerRequest.Password) ? "check-circle-fill" : "circle")"></i>
+                                One number
+                            </li>
+                        </ul>
                     </small>
                     <ValidationMessage For="@(() => registerRequest.Password)" />
                 </div>
@@ -71,8 +112,13 @@
                     @if (isLoading)
                     {
                         <span class="auth-spinner"></span>
+                        <span>Creating Account...</span>
                     }
-                    <span>Register</span>
+                    else
+                    {
+                        <i class="bi bi-person-plus"></i>
+                        <span>Create Account</span>
+                    }
                 </button>
             </EditForm>
         </div>
@@ -87,9 +133,70 @@
     private RegisterRequest registerRequest = new() { Username = "", Email = "", Password = "", FullName = "" };
     private string? errorMessage;
     private bool isLoading = false;
+    private int passwordStrength = 0;
+
+    private void OnPasswordInput(ChangeEventArgs e)
+    {
+        var password = e.Value?.ToString() ?? "";
+        registerRequest.Password = password;
+        CalculatePasswordStrength(password);
+    }
+
+    private void CalculatePasswordStrength(string password)
+    {
+        passwordStrength = 0;
+        if (string.IsNullOrEmpty(password)) return;
+
+        if (password.Length >= 8) passwordStrength++;
+        if (HasUpperCase(password)) passwordStrength++;
+        if (HasLowerCase(password)) passwordStrength++;
+        if (HasDigit(password)) passwordStrength++;
+    }
+
+    private bool HasUpperCase(string? password) => 
+        !string.IsNullOrEmpty(password) && password.Any(char.IsUpper);
+
+    private bool HasLowerCase(string? password) => 
+        !string.IsNullOrEmpty(password) && password.Any(char.IsLower);
+
+    private bool HasDigit(string? password) => 
+        !string.IsNullOrEmpty(password) && password.Any(char.IsDigit);
+
+    private string GetPasswordStrengthClass()
+    {
+        return passwordStrength switch
+        {
+            0 => "strength-none",
+            1 => "strength-weak",
+            2 => "strength-fair",
+            3 => "strength-good",
+            4 => "strength-strong",
+            _ => "strength-none"
+        };
+    }
+
+    private string GetPasswordStrengthText()
+    {
+        return passwordStrength switch
+        {
+            0 => "Too weak",
+            1 => "Weak",
+            2 => "Fair",
+            3 => "Good",
+            4 => "Strong",
+            _ => ""
+        };
+    }
 
     private async Task HandleRegister()
     {
+        // Validate password strength
+        if (passwordStrength < 3)
+        {
+            errorMessage = "Please choose a stronger password that meets all requirements.";
+            return;
+        }
+
         try
         {
             isLoading = true;
@@ -101,12 +208,18 @@
             {
                 AuthStateProvider.SetAuthentication(response.Username, response.Email, response.UserId, response.Token);
                 ApiService.SetToken(response.Token);
-                NavigationManager.NavigateTo("/calendar-list");
+                NavigationManager.NavigateTo("/calendar-view");
             }
         }
-        catch (Exception)
+        catch (HttpRequestException ex)
         {
-            errorMessage = "Registration failed. Username or email may already exist.";
+            errorMessage = $"Unable to connect to server. Please make sure the API is running. Error: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message.Contains("already exists") 
+                ? "Registration failed. Username or email already exists." 
+                : $"Registration failed: {ex.Message}";
         }
         finally
         {
