@@ -53,9 +53,10 @@ builder.Services.AddSignalR();
 Log.Information("✅ SignalR configured successfully");
 
 // Configure Database - Using SQLite for development
-Log.Information("Configuring database with SQLite");
+var dbPath = builder.Configuration["Database:SqlitePath"] ?? "EventScheduler.db";
+Log.Information("Configuring database with SQLite: {DbPath}", dbPath);
 builder.Services.AddDbContext<EventSchedulerDbContext>(options =>
-    options.UseSqlite("Data Source=EventScheduler.db"));
+    options.UseSqlite($"Data Source={dbPath}"));
 
 // Register Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -151,15 +152,25 @@ Log.Information("✅ SignalR hub endpoint configured at: /hubs/events");
 app.MapGet("/", () => "EventScheduler API is running!");
 
 // Database initialization
+// Note: Using EnsureCreated() for development. For production, use db.Database.Migrate() instead.
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<EventSchedulerDbContext>();
         
-        Log.Information("Ensuring database is created...");
-        db.Database.EnsureCreated();
-        Log.Information("Database is ready!");
+        if (app.Environment.IsDevelopment())
+        {
+            Log.Information("Development: Ensuring database is created...");
+            db.Database.EnsureCreated();
+            Log.Information("Database is ready!");
+        }
+        else
+        {
+            Log.Information("Production: Applying database migrations...");
+            db.Database.Migrate();
+            Log.Information("Database migrations applied successfully!");
+        }
         
         var userCount = db.Users.Count();
         var eventCount = db.Events.Count();
