@@ -147,6 +147,98 @@ main {
     display: block;
 }
 
+/* ============================================
+   👤 User Section in Navigation
+   ============================================ */
+
+.nav-section-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 1rem 1rem;
+}
+
+.nav-user-section {
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.nav-user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.5rem;
+}
+
+.nav-user-avatar {
+    font-size: 2rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.nav-user-details {
+    flex: 1;
+}
+
+.nav-user-name {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    line-height: 1.2;
+}
+
+.nav-user-status {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8125rem;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.nav-user-status::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: #10b981;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.nav-link-logout {
+    color: #fca5a5 !important;
+}
+
+.nav-link-logout:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    color: #ef4444 !important;
+}
+
+.nav-link-login,
+.nav-link-register {
+    font-weight: 600;
+}
+
+.nav-link-register {
+    background: rgba(102, 126, 234, 0.15);
+    color: #a5b4fc !important;
+}
+
+.nav-link-register:hover {
+    background: rgba(102, 126, 234, 0.25) !important;
+    color: #c7d2fe !important;
+}
+
 /* Buttons */
 .btn {
     padding: 0.625rem 1.25rem;

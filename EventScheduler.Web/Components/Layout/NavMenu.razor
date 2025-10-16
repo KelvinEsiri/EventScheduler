@@ -1,4 +1,9 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">
             <i class="bi bi-calendar-check"></i> Event Scheduler
@@ -22,17 +27,71 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="calendar-view">
-                <span class="bi bi-calendar3" aria-hidden="true"></span> Calendar
-            </NavLink>
-        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="calendar-view">
+                        <span class="bi bi-calendar3" aria-hidden="true"></span> Calendar
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="calendar-list">
-                <span class="bi bi-list-ul" aria-hidden="true"></span> Event List
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="calendar-list">
+                        <span class="bi bi-list-ul" aria-hidden="true"></span> Event List
+                    </NavLink>
+                </div>
+
+                <div class="nav-section-divider"></div>
+
+                <div class="nav-user-section">
+                    <div class="nav-user-info">
+                        <div class="nav-user-avatar">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <div class="nav-user-details">
+                            <div class="nav-user-name">@context.User.Identity?.Name</div>
+                            <div class="nav-user-status">Online</div>
+                        </div>
+                    </div>
+                    <div class="nav-item px-3">
+                        <a class="nav-link nav-link-logout" href="/logout">
+                            <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
+                        </a>
+                    </div>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-section-divider"></div>
+                
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-link-login" href="login">
+                        <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-link-register" href="register">
+                        <span class="bi bi-person-plus" aria-hidden="true"></span> Register
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </div>
 
+@code {
+    protected override void OnInitialized()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+    }
+}
