@@ -17,17 +17,20 @@ public class ErrorResponse
 /// <summary>
 /// Service for communicating with the EventScheduler API
 /// Handles all HTTP requests to the backend API including authentication and event management
+/// Follows NasosoTax reference patterns for token handling and error management
 /// </summary>
 public class ApiService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<ApiService> _logger;
+    private readonly AuthStateProvider _authStateProvider;
     private string? _token;
 
-    public ApiService(HttpClient httpClient, ILogger<ApiService> logger)
+    public ApiService(HttpClient httpClient, ILogger<ApiService> logger, AuthStateProvider authStateProvider)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _authStateProvider = authStateProvider;
     }
 
     /// <summary>
@@ -47,6 +50,31 @@ public class ApiService
     {
         _token = null;
         _httpClient.DefaultRequestHeaders.Authorization = null;
+    }
+
+    /// <summary>
+    /// Ensures token is present in request headers before making API calls
+    /// Automatically injects token from AuthStateProvider if not already set
+    /// </summary>
+    private void EnsureToken()
+    {
+        var token = _token ?? _authStateProvider.GetToken();
+        if (!string.IsNullOrEmpty(token))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+    }
+
+    /// <summary>
+    /// Checks if the response indicates an unauthorized access (401)
+    /// Throws UnauthorizedAccessException which protected pages should catch and handle
+    /// </summary>
+    private void CheckUnauthorized(HttpResponseMessage response)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Session expired. Please log in again.");
+        }
     }
 
     #region Authentication Endpoints
@@ -103,7 +131,17 @@ public class ApiService
     {
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<EventResponse>>("/api/events") ?? new List<EventResponse>();
+            EnsureToken(); // Inject token into request
+            var response = await _httpClient.GetAsync("/api/events");
+            CheckUnauthorized(response); // Check for 401
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<List<EventResponse>>() ?? new List<EventResponse>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Re-throw to let calling component handle redirect
+            throw;
         }
         catch (Exception ex)
         {
@@ -121,7 +159,16 @@ public class ApiService
     {
         try
         {
-            return await _httpClient.GetFromJsonAsync<EventResponse>($"/api/events/{id}");
+            EnsureToken();
+            var response = await _httpClient.GetAsync($"/api/events/{id}");
+            CheckUnauthorized(response);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<EventResponse>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -140,9 +187,17 @@ public class ApiService
     {
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<EventResponse>>(
-                $"/api/events/date-range?startDate={startDate:yyyy-MM-dd}&endDate={endDate:yyyy-MM-dd}") 
-                ?? new List<EventResponse>();
+            EnsureToken();
+            var response = await _httpClient.GetAsync(
+                $"/api/events/date-range?startDate={startDate:yyyy-MM-dd}&endDate={endDate:yyyy-MM-dd}");
+            CheckUnauthorized(response);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<List<EventResponse>>() ?? new List<EventResponse>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -155,7 +210,9 @@ public class ApiService
     {
         try
         {
+            EnsureToken();
             var response = await _httpClient.PostAsJsonAsync("/api/events", request);
+            CheckUnauthorized(response);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -184,6 +241,10 @@ public class ApiService
             
             return await response.Content.ReadFromJsonAsync<EventResponse>();
         }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
         catch (InvalidOperationException)
         {
             // Re-throw validation errors
@@ -200,7 +261,9 @@ public class ApiService
     {
         try
         {
+            EnsureToken();
             var response = await _httpClient.PutAsJsonAsync($"/api/events/{id}", request);
+            CheckUnauthorized(response);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -229,6 +292,10 @@ public class ApiService
             
             return await response.Content.ReadFromJsonAsync<EventResponse>();
         }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
         catch (InvalidOperationException)
         {
             // Re-throw validation errors
@@ -245,8 +312,14 @@ public class ApiService
     {
         try
         {
+            EnsureToken();
             var response = await _httpClient.DeleteAsync($"/api/events/{id}");
+            CheckUnauthorized(response);
             response.EnsureSuccessStatusCode();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
