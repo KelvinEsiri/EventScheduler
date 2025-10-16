@@ -924,3 +924,104 @@ textarea.form-control {
         box-shadow: none !important;
     }
 }
+/* ===================================
+   📅 Day Event Cards & Modal
+   =================================== */
+
+/* Day Event Card */
+.day-event-card {
+    background: white;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.day-event-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.day-event-card .event-card-header {
+    background: var(--event-color, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    color: white;
+    padding: 0.75rem 1rem;
+}
+
+.day-event-card .event-time {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.day-event-card .event-card-body {
+    padding: 1rem;
+}
+
+.day-event-card h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.day-event-card .event-description {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.day-event-card .event-location {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.day-event-card .event-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Day Events Modal */
+.day-events-modal {
+    max-width: 40rem;
+}
+
+.day-events-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.day-events-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.no-events-message {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-secondary);
+}
+
+.no-events-message i {
+    font-size: 3rem;
+    color: var(--border-color);
+    margin-bottom: 1rem;
+}
+
+.no-events-message p {
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+}

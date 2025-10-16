@@ -414,7 +414,7 @@
                             @foreach (var evt in dayEvents)
                             {
                                 <div class="day-event-card" @onclick="async () => await ShowEventDetailsFromDayList(evt)">
-                                    <div class="event-card-header" style="background-color: @(evt.Color ?? "#3788d8")">
+                                    <div class="event-card-header" data-color="@(evt.Color ?? "#3788d8")" style="--event-color: @(evt.Color ?? "#3788d8")">
                                         <div class="event-time">
                                             @if (evt.IsAllDay)
                                             {

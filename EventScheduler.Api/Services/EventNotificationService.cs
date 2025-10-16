@@ -5,6 +5,10 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace EventScheduler.Api.Services;
 
+/// <summary>
+/// Service for broadcasting event notifications via SignalR
+/// Implements real-time communication for event CRUD operations
+/// </summary>
 public class EventNotificationService : IEventNotificationService
 {
     private readonly IHubContext<EventHub> _hubContext;
@@ -16,6 +20,11 @@ public class EventNotificationService : IEventNotificationService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Broadcasts a notification when a new event is created
+    /// All connected clients receive the event data in real-time
+    /// </summary>
+    /// <param name="eventData">The newly created event details</param>
     public async Task NotifyEventCreatedAsync(EventResponse eventData)
     {
         try
@@ -31,6 +40,11 @@ public class EventNotificationService : IEventNotificationService
         }
     }
 
+    /// <summary>
+    /// Broadcasts a notification when an event is updated
+    /// All connected clients receive the updated event data
+    /// </summary>
+    /// <param name="eventData">The updated event details</param>
     public async Task NotifyEventUpdatedAsync(EventResponse eventData)
     {
         try
@@ -46,6 +60,12 @@ public class EventNotificationService : IEventNotificationService
         }
     }
 
+    /// <summary>
+    /// Broadcasts a notification when an event is deleted
+    /// Includes both event ID and title for client-side identification
+    /// </summary>
+    /// <param name="eventId">The ID of the deleted event</param>
+    /// <param name="eventTitle">The title of the deleted event</param>
     public async Task NotifyEventDeletedAsync(int eventId, string eventTitle)
     {
         try

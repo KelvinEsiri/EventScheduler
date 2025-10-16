@@ -12,6 +12,10 @@ using System.Text;
 
 namespace EventScheduler.Application.Services;
 
+/// <summary>
+/// Service for user authentication and authorization
+/// Handles user registration, login, password management, and JWT token generation
+/// </summary>
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
@@ -25,6 +29,13 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// Registers a new user account
+    /// Validates uniqueness of username and email, hashes password, and sends welcome email
+    /// </summary>
+    /// <param name="request">Registration details including username, email, password, and full name</param>
+    /// <returns>Login response with JWT token and user details</returns>
+    /// <exception cref="InvalidOperationException">Thrown when username or email already exists</exception>
     public async Task<LoginResponse> RegisterAsync(RegisterRequest request)
     {
         if (await _userRepository.ExistsAsync(request.Username, request.Email))
@@ -60,6 +71,13 @@ public class AuthService : IAuthService
         };
     }
 
+    /// <summary>
+    /// Authenticates a user with username and password
+    /// Updates last login time and generates JWT token upon successful authentication
+    /// </summary>
+    /// <param name="request">Login credentials (username and password)</param>
+    /// <returns>Login response with JWT token and user details</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown when credentials are invalid</exception>
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
         var user = await _userRepository.GetByUsernameAsync(request.Username);

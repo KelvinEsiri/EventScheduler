@@ -6,58 +6,216 @@
 
 <PageTitle>Event Scheduler</PageTitle>
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-8 text-center">
-            <h1 class="display-4 mb-4">Welcome to Event Scheduler</h1>
-            <p class="lead mb-4">
-                Organize your life with our powerful event scheduling application.
-                Create, manage, and track your events effortlessly.
-            </p>
-            
-            <div class="row mb-5">
-                <div class="col-md-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <i class="bi bi-calendar-event display-4 text-primary mb-3"></i>
-                            <h5 class="card-title">Easy Scheduling</h5>
-                            <p class="card-text">Create and manage events with a simple, intuitive interface</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <i class="bi bi-globe display-4 text-success mb-3"></i>
-                            <h5 class="card-title">Public Events</h5>
-                            <p class="card-text">Discover and share public events with the community</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <i class="bi bi-shield-check display-4 text-info mb-3"></i>
-                            <h5 class="card-title">Secure & Private</h5>
-                            <p class="card-text">Your data is protected with industry-standard security</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<style>
+    .home-container {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem 1rem;
+    }
 
-            <div class="d-grid gap-2 d-md-block mb-5">
-                <a href="/public-events" class="btn btn-success btn-lg px-5">View Public Events</a>
-                @if (isAuthenticated)
-                {
-                    <a href="/calendar-view" class="btn btn-primary btn-lg px-5 ms-md-3">My Calendar</a>
-                    <a href="/calendar-list" class="btn btn-outline-primary btn-lg px-5 ms-md-3">My Events</a>
-                }
-                else
-                {
-                    <a href="/register" class="btn btn-primary btn-lg px-5 ms-md-3">Get Started</a>
-                    <a href="/login" class="btn btn-outline-primary btn-lg px-5 ms-md-3">Login</a>
-                }
+    .home-content {
+        max-width: 75rem;
+        margin: 0 auto;
+        text-align: center;
+        color: #fff;
+    }
+
+    .home-title {
+        font-size: clamp(2rem, 5vw, 3.5rem);
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .home-subtitle {
+        font-size: clamp(1rem, 2.5vw, 1.25rem);
+        margin-bottom: 3rem;
+        opacity: 0.95;
+        max-width: 50rem;
+        margin-left: auto;
+        margin-right: auto;
+        line-height: 1.6;
+    }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 3rem;
+    }
+
+    .feature-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 1rem;
+        padding: 2rem 1.5rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .feature-card h5 {
+        color: #374151;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        font-size: 1.25rem;
+    }
+
+    .feature-card p {
+        color: #6b7280;
+        font-size: 0.9375rem;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .home-btn {
+        padding: 1rem 2rem;
+        border-radius: 0.75rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .home-btn-primary {
+        background: #fff;
+        color: #667eea;
+    }
+
+    .home-btn-primary:hover {
+        background: #f3f4f6;
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .home-btn-outline {
+        background: transparent;
+        color: #fff;
+        border: 2px solid #fff;
+    }
+
+    .home-btn-outline:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-3px);
+    }
+
+    .home-btn-success {
+        background: #10b981;
+        color: #fff;
+    }
+
+    .home-btn-success:hover {
+        background: #059669;
+        transform: translateY(-3px);
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 48rem) {
+        .home-container {
+            padding: 1.5rem 1rem;
+        }
+
+        .features-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .home-btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+
+    @@media (min-width: 48rem) and (max-width: 64rem) {
+        .features-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+<div class="home-container">
+    <div class="home-content">
+        <h1 class="home-title">Welcome to Event Scheduler</h1>
+        <p class="home-subtitle">
+            Organize your life with our powerful event scheduling application.
+            Create, manage, and track your events effortlessly with an intuitive interface.
+        </p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-calendar-event text-primary"></i>
+                </div>
+                <h5>Easy Scheduling</h5>
+                <p>Create and manage events with a simple, intuitive interface that works on all devices</p>
             </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-globe text-success"></i>
+                </div>
+                <h5>Public Events</h5>
+                <p>Discover and share public events with the community and stay connected</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-shield-check text-info"></i>
+                </div>
+                <h5>Secure & Private</h5>
+                <p>Your data is protected with industry-standard security and encryption</p>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <a href="/public-events" class="home-btn home-btn-success">
+                <i class="bi bi-globe"></i>
+                View Public Events
+            </a>
+            @if (isAuthenticated)
+            {
+                <a href="/calendar-view" class="home-btn home-btn-primary">
+                    <i class="bi bi-calendar-heart"></i>
+                    My Calendar
+                </a>
+                <a href="/calendar-list" class="home-btn home-btn-outline">
+                    <i class="bi bi-list-task"></i>
+                    My Events
+                </a>
+            }
+            else
+            {
+                <a href="/register" class="home-btn home-btn-primary">
+                    <i class="bi bi-person-plus"></i>
+                    Get Started
+                </a>
+                <a href="/login" class="home-btn home-btn-outline">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    Login
+                </a>
+            }
         </div>
     </div>
 </div>
