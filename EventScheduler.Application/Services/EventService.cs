@@ -13,17 +13,20 @@ public class EventService : IEventService
     private readonly IEmailService _emailService;
     private readonly IUserRepository _userRepository;
     private readonly ILogger<EventService> _logger;
+    private readonly IEventNotificationService? _notificationService;
 
     public EventService(
         IEventRepository eventRepository, 
         IEmailService emailService, 
         IUserRepository userRepository,
-        ILogger<EventService> logger)
+        ILogger<EventService> logger,
+        IEventNotificationService? notificationService = null)
     {
         _eventRepository = eventRepository;
         _emailService = emailService;
         _userRepository = userRepository;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<EventResponse> CreateEventAsync(int userId, CreateEventRequest request)
@@ -79,7 +82,19 @@ public class EventService : IEventService
             await _eventRepository.UpdateAsync(createdEvent);
         }
 
-        return MapToResponse(createdEvent);
+        var eventResponse = MapToResponse(createdEvent);
+
+        // Broadcast SignalR notification with event data
+        if (_notificationService != null)
+        {
+            await _notificationService.NotifyEventCreatedAsync(eventResponse);
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ SignalR: Notification service is null, cannot broadcast EventCreated");
+        }
+
+        return eventResponse;
     }
 
     public async Task<EventResponse> UpdateEventAsync(int userId, int eventId, UpdateEventRequest request)
@@ -153,14 +168,41 @@ public class EventService : IEventService
         await _eventRepository.UpdateAsync(eventEntity);
         _logger.LogInformation("Event {EventId} updated successfully by user {UserId}", eventId, userId);
 
-        return MapToResponse(eventEntity);
+        var eventResponse = MapToResponse(eventEntity);
+
+        // Broadcast SignalR notification with updated event data
+        if (_notificationService != null)
+        {
+            await _notificationService.NotifyEventUpdatedAsync(eventResponse);
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ SignalR: Notification service is null, cannot broadcast EventUpdated");
+        }
+
+        return eventResponse;
     }
 
     public async Task DeleteEventAsync(int userId, int eventId)
     {
         _logger.LogInformation("Deleting event {EventId} for user {UserId}", eventId, userId);
+        
+        // Get event details before deletion for notification
+        var eventEntity = await _eventRepository.GetByIdAsync(eventId, userId);
+        var eventTitle = eventEntity?.Title ?? "Unknown Event";
+        
         await _eventRepository.DeleteAsync(eventId, userId);
         _logger.LogInformation("Event {EventId} deleted successfully", eventId);
+
+        // Broadcast SignalR notification with event ID and title
+        if (_notificationService != null)
+        {
+            await _notificationService.NotifyEventDeletedAsync(eventId, eventTitle);
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ SignalR: Notification service is null, cannot broadcast EventDeleted");
+        }
     }
 
     public async Task<EventResponse?> GetEventByIdAsync(int userId, int eventId)

@@ -7,6 +7,7 @@ using EventScheduler.Application.Interfaces.Services;
 using EventScheduler.Application.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
@@ -47,7 +48,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 // Add SignalR
+Log.Information("Configuring SignalR...");
 builder.Services.AddSignalR();
+Log.Information("✅ SignalR configured successfully");
 
 // Configure Database
 builder.Services.AddDbContext<EventSchedulerDbContext>(options =>
@@ -59,6 +62,7 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEventNotificationService, EventScheduler.Api.Services.EventNotificationService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -107,7 +111,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowWebApp",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5292", "https://localhost:7248")
+            policy.WithOrigins(
+                    "http://localhost:5292", 
+                    "https://localhost:7248",
+                    "http://localhost:5006",
+                    "https://localhost:7249")
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -133,7 +141,10 @@ app.UseCors("AllowWebApp");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+Log.Information("Mapping SignalR hub to /hubs/events...");
 app.MapHub<EventHub>("/hubs/events");
+Log.Information("✅ SignalR hub endpoint configured at: /hubs/events");
 
 // Add a simple health check endpoint
 app.MapGet("/", () => "EventScheduler API is running!");
@@ -160,8 +171,14 @@ catch (Exception ex)
     throw;
 }
 
-Log.Information("EventScheduler API listening on http://localhost:5005");
-Log.Information("API is ready to accept requests");
+Log.Information("========================================");
+Log.Information("🚀 EventScheduler API is READY");
+Log.Information("========================================");
+Log.Information("API listening on: http://localhost:5006");
+Log.Information("SignalR Hub at: http://localhost:5006/hubs/events");
+Log.Information("Health check: http://localhost:5006");
+Log.Information("========================================");
+Log.Information("✅ API is ready to accept requests");
 
 app.Run();
 }

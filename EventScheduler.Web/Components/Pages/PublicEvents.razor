@@ -374,6 +374,7 @@
         if (evt != null)
         {
             ShowEventDetails(evt);
+            StateHasChanged(); // Force UI update to show modal
         }
         return Task.CompletedTask;
     }
@@ -407,11 +408,13 @@
     private void ShowEventDetails(EventResponse evt)
     {
         selectedEvent = evt;
+        StateHasChanged(); // Force UI update to show modal
     }
 
     private void CloseModal()
     {
         selectedEvent = null;
+        StateHasChanged(); // Force UI update to hide modal
     }
 
     private string GetEventTypeClass(string eventType)

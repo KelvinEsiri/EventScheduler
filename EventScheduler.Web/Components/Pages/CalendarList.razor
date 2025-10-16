@@ -1298,9 +1298,16 @@
             CloseModal();
             await LoadEvents();
         }
+        catch (InvalidOperationException ex)
+        {
+            // Handle validation errors with specific message
+            await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+        }
         catch (Exception)
         {
-            // Handle error
+            // Handle other errors
+            var message = isEditMode ? "Failed to update event." : "Failed to create event.";
+            await JSRuntime.InvokeVoidAsync("alert", message);
         }
     }
 

@@ -112,6 +112,11 @@ public class EventsController : ControllerBase
             
             return CreatedAtAction(nameof(GetEventById), new { id = eventData.Id }, eventData);
         }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Validation error creating event");
+            return BadRequest(new { error = ex.Message });
+        }
         catch (UnauthorizedAccessException ex)
         {
             return Unauthorized(new { error = ex.Message });
@@ -141,6 +146,13 @@ public class EventsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            // Check if it's a validation error or not found error
+            if (ex.Message.Contains("End date cannot be before start date") || 
+                ex.Message.Contains("not found") == false)
+            {
+                _logger.LogWarning(ex, "Validation error updating event {EventId}", id);
+                return BadRequest(new { error = ex.Message });
+            }
             return NotFound(new { error = ex.Message });
         }
         catch (UnauthorizedAccessException ex)

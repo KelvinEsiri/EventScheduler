@@ -6,6 +6,12 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
+// Helper class for deserializing error responses
+public class ErrorResponse
+{
+    public string? Error { get; set; }
+}
+
 public class ApiService
 {
     private readonly HttpClient _httpClient;
@@ -108,8 +114,38 @@ public class ApiService
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/events", request);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error creating event. Status: {StatusCode}, Error: {Error}", 
+                    response.StatusCode, errorContent);
+                
+                // Try to extract the error message from the response
+                try
+                {
+                    var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(errorContent, 
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    if (errorResponse?.Error != null)
+                    {
+                        throw new InvalidOperationException(errorResponse.Error);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // If JSON deserialization fails, use the raw content
+                }
+                
+                throw new HttpRequestException($"Error creating event: {response.StatusCode}");
+            }
+            
             return await response.Content.ReadFromJsonAsync<EventResponse>();
+        }
+        catch (InvalidOperationException)
+        {
+            // Re-throw validation errors
+            throw;
         }
         catch (Exception ex)
         {
@@ -123,8 +159,38 @@ public class ApiService
         try
         {
             var response = await _httpClient.PutAsJsonAsync($"/api/events/{id}", request);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error updating event {EventId}. Status: {StatusCode}, Error: {Error}", 
+                    id, response.StatusCode, errorContent);
+                
+                // Try to extract the error message from the response
+                try
+                {
+                    var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(errorContent, 
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    if (errorResponse?.Error != null)
+                    {
+                        throw new InvalidOperationException(errorResponse.Error);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // If JSON deserialization fails, use the raw content
+                }
+                
+                throw new HttpRequestException($"Error updating event: {response.StatusCode}");
+            }
+            
             return await response.Content.ReadFromJsonAsync<EventResponse>();
+        }
+        catch (InvalidOperationException)
+        {
+            // Re-throw validation errors
+            throw;
         }
         catch (Exception ex)
         {

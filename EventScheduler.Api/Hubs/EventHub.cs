@@ -16,13 +16,24 @@ public class EventHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        _logger.LogInformation("Client connected: {ConnectionId}", Context.ConnectionId);
+        _logger.LogInformation("========================================");
+        _logger.LogInformation("✅ SignalR: Client connected!");
+        _logger.LogInformation("Connection ID: {ConnectionId}", Context.ConnectionId);
+        _logger.LogInformation("User: {User}", Context.User?.Identity?.Name ?? "Anonymous");
+        _logger.LogInformation("========================================");
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        _logger.LogInformation("Client disconnected: {ConnectionId}", Context.ConnectionId);
+        if (exception != null)
+        {
+            _logger.LogError(exception, "❌ SignalR: Client disconnected with error: {ConnectionId}", Context.ConnectionId);
+        }
+        else
+        {
+            _logger.LogInformation("SignalR: Client disconnected normally: {ConnectionId}", Context.ConnectionId);
+        }
         await base.OnDisconnectedAsync(exception);
     }
 
