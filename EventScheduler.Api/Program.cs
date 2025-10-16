@@ -52,9 +52,10 @@ Log.Information("Configuring SignalR...");
 builder.Services.AddSignalR();
 Log.Information("✅ SignalR configured successfully");
 
-// Configure Database
+// Configure Database - Using SQLite for development
+Log.Information("Configuring database with SQLite");
 builder.Services.AddDbContext<EventSchedulerDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlite("Data Source=EventScheduler.db"));
 
 // Register Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -149,16 +150,16 @@ Log.Information("✅ SignalR hub endpoint configured at: /hubs/events");
 // Add a simple health check endpoint
 app.MapGet("/", () => "EventScheduler API is running!");
 
-// Database initialization with migrations
+// Database initialization
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<EventSchedulerDbContext>();
         
-        Log.Information("Applying database migrations...");
-        db.Database.Migrate();
-        Log.Information("Database migrations applied successfully!");
+        Log.Information("Ensuring database is created...");
+        db.Database.EnsureCreated();
+        Log.Information("Database is ready!");
         
         var userCount = db.Users.Count();
         var eventCount = db.Events.Count();
@@ -167,7 +168,7 @@ try
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Database migration failed!");
+    Log.Fatal(ex, "Database initialization failed!");
     throw;
 }
 
