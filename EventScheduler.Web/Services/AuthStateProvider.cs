@@ -4,12 +4,19 @@ using System.Security.Claims;
 
 namespace EventScheduler.Web.Services;
 
+/// <summary>
+/// Circuit-scoped authentication state provider
+/// Manages authentication state for the current user session following NasosoTax reference patterns
+/// </summary>
 public class AuthStateProvider : AuthenticationStateProvider
 {
     private readonly IJSRuntime _jsRuntime;
     private ClaimsPrincipal _anonymous = new ClaimsPrincipal(new ClaimsIdentity());
     private ClaimsPrincipal? _currentUser;
     private bool _initialized = false;
+    private string? _token;
+    private string? _username;
+    private int? _userId;
 
     public AuthStateProvider(IJSRuntime jsRuntime)
     {
@@ -48,12 +55,21 @@ public class AuthStateProvider : AuthenticationStateProvider
         }
     }
 
+    /// <summary>
+    /// Marks the user as authenticated and stores credentials in memory
+    /// Called after successful login
+    /// </summary>
     public void SetAuthentication(string username, string email, int userId, string token)
     {
+        _username = username;
+        _userId = userId;
+        _token = token;
+
         var claims = new[]
         {
             new Claim(ClaimTypes.Name, username),
             new Claim(ClaimTypes.Email, email),
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
             new Claim("userId", userId.ToString()),
             new Claim("token", token)
         };
@@ -66,10 +82,15 @@ public class AuthStateProvider : AuthenticationStateProvider
 
     private void SetAuthenticationInternal(string username, string email, int userId, string token)
     {
+        _username = username;
+        _userId = userId;
+        _token = token;
+
         var claims = new[]
         {
             new Claim(ClaimTypes.Name, username),
             new Claim(ClaimTypes.Email, email),
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
             new Claim("userId", userId.ToString()),
             new Claim("token", token)
         };
@@ -78,20 +99,54 @@ public class AuthStateProvider : AuthenticationStateProvider
         _currentUser = new ClaimsPrincipal(identity);
     }
 
+    /// <summary>
+    /// Clears authentication state and marks user as logged out
+    /// Called during logout or session expiration
+    /// </summary>
     public async Task ClearAuthentication()
     {
+        _username = null;
+        _userId = null;
+        _token = null;
         _currentUser = null;
+        
         await _jsRuntime.InvokeVoidAsync("authHelper.clearAuthData");
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
 
-    public string? GetToken()
+    /// <summary>
+    /// Checks if the current user is authenticated
+    /// Used by protected pages to verify authentication before loading
+    /// </summary>
+    public bool IsAuthenticated()
     {
-        return _currentUser?.FindFirst("token")?.Value;
+        return _currentUser?.Identity?.IsAuthenticated ?? false;
     }
 
+    /// <summary>
+    /// Gets the stored JWT token for API requests
+    /// </summary>
+    public string? GetToken()
+    {
+        return _token ?? _currentUser?.FindFirst("token")?.Value;
+    }
+
+    /// <summary>
+    /// Gets the current username
+    /// </summary>
+    public string? GetUsername()
+    {
+        return _username ?? _currentUser?.FindFirst(ClaimTypes.Name)?.Value;
+    }
+
+    /// <summary>
+    /// Gets the current user ID
+    /// </summary>
     public int? GetUserId()
     {
+        if (_userId.HasValue)
+            return _userId.Value;
+            
         var userIdClaim = _currentUser?.FindFirst("userId")?.Value;
         return int.TryParse(userIdClaim, out var userId) ? userId : null;
     }
