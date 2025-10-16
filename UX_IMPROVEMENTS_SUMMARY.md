@@ -188,10 +188,10 @@ All improvements are compatible with:
 ## Future Recommendations
 
 ### Phase 2 Enhancements:
-- [ ] Add email validation with format checking
-- [ ] Implement "Remember Me" functionality
-- [ ] Add password visibility toggle
-- [ ] Enhance calendar modal forms with same patterns
+- [ ] Add advanced email validation with format checking and domain verification
+- [ ] Implement "Remember Me" functionality (Note: requires careful JWT token management and extended expiration strategy)
+- [ ] Add password visibility toggle (eye icon)
+- [ ] Enhance calendar modal forms with same validation patterns
 - [ ] Add client-side caching for better performance
 - [ ] Implement dark mode support
 - [ ] Add animation library for smoother transitions
