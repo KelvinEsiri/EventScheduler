@@ -34,6 +34,17 @@
     margin: 0;
     font-size: 1.75rem;
     font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.auth-card-subtitle {
+    margin: 0.5rem 0 0 0;
+    font-size: 1rem;
+    font-weight: 400;
+    opacity: 0.9;
 }
 
 .auth-card-body {
@@ -82,6 +93,14 @@
     font-weight: 600;
     border-radius: 0.5rem;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.auth-btn i {
+    font-size: 1.125rem;
 }
 
 .auth-btn-primary {
@@ -121,6 +140,31 @@
 
 .auth-footer a:hover {
     text-decoration: underline;
+}
+
+/* Auth Divider */
+.auth-divider {
+    margin: 1.5rem 0;
+    text-align: center;
+    position: relative;
+}
+
+.auth-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #e5e7eb;
+}
+
+.auth-divider span {
+    position: relative;
+    background: #fff;
+    padding: 0 1rem;
+    color: #6b7280;
+    font-size: 0.875rem;
 }
 
 /* Auth Alerts */

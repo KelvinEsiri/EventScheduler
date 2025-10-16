@@ -13,7 +13,11 @@
 <div class="auth-container">
     <div class="auth-card">
         <div class="auth-card-header">
-            <h3>Create Account</h3>
+            <h3>
+                <i class="bi bi-person-plus"></i>
+                Create Account
+            </h3>
+            <p class="auth-card-subtitle">Join Event Scheduler today</p>
         </div>
 
         <div class="auth-card-body">
@@ -33,7 +37,8 @@
                         <i class="bi bi-person-badge"></i>
                         Full Name
                     </label>
-                    <InputText id="fullname" class="form-control" @bind-Value="registerRequest.FullName" placeholder="Enter your full name" />
+                    <InputText id="fullname" class="form-control" @bind-Value="registerRequest.FullName" 
+                               placeholder="Enter your full name" autocomplete="name" />
                     <ValidationMessage For="@(() => registerRequest.FullName)" />
                 </div>
 
@@ -42,7 +47,8 @@
                         <i class="bi bi-person"></i>
                         Username
                     </label>
-                    <InputText id="username" class="form-control" @bind-Value="registerRequest.Username" placeholder="Choose a username" />
+                    <InputText id="username" class="form-control" @bind-Value="registerRequest.Username" 
+                               placeholder="Choose a username" autocomplete="username" />
                     <ValidationMessage For="@(() => registerRequest.Username)" />
                 </div>
 
@@ -51,7 +57,8 @@
                         <i class="bi bi-envelope"></i>
                         Email
                     </label>
-                    <InputText id="email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter your email" />
+                    <InputText id="email" type="email" class="form-control" @bind-Value="registerRequest.Email" 
+                               placeholder="Enter your email" autocomplete="email" />
                     <ValidationMessage For="@(() => registerRequest.Email)" />
                 </div>
 
@@ -105,8 +112,13 @@
                     @if (isLoading)
                     {
                         <span class="auth-spinner"></span>
+                        <span>Creating Account...</span>
                     }
-                    <span>Register</span>
+                    else
+                    {
+                        <i class="bi bi-person-plus"></i>
+                        <span>Create Account</span>
+                    }
                 </button>
             </EditForm>
         </div>
