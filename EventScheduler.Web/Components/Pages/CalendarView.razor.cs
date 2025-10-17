@@ -35,6 +35,7 @@ public partial class CalendarView : IAsyncDisposable
     private string? connectionStatus;
     private readonly HashSet<int> pendingLocalChanges = new();
     private DateTime? lastLocalOperationTime = null;
+    private bool isCreatingEventLocally = false; // Flag to prevent SignalR duplicate during creation
     
     // Modal state - Consolidated
     private bool showModal = false;
@@ -165,16 +166,23 @@ public partial class CalendarView : IAsyncDisposable
         // Optimized event created handler
         hubConnection.On<EventResponse>("EventCreated", async (eventData) => {
             await InvokeAsync(async () => {
-                // Skip notification for local operations
+                // Skip adding event if we're currently creating it locally
+                if (isCreatingEventLocally)
+                {
+                    Logger.LogInformation("SignalR: Skipping EventCreated - local creation in progress (EventId: {EventId})", eventData.Id);
+                    return; // Don't add the event - SaveEvent will handle it
+                }
+                
+                // Skip if this was a very recent local operation (backup check)
                 if (IsRecentLocalOperation())
                 {
                     lastLocalOperationTime = null;
-                }
-                else
-                {
-                    ShowSuccess($"Event '{eventData.Title}' created!");
+                    Logger.LogInformation("SignalR: Skipping EventCreated - recent local operation (EventId: {EventId})", eventData.Id);
+                    return;
                 }
                 
+                // This is from another user/session
+                ShowSuccess($"Event '{eventData.Title}' created!");
                 events.Add(eventData);
                 await JSRuntime.InvokeVoidAsync("addEventToCalendar", eventData);
                 StateHasChanged();
@@ -845,13 +853,39 @@ public partial class CalendarView : IAsyncDisposable
             }
             else
             {
-                lastLocalOperationTime = DateTime.UtcNow;
-                await ApiService.CreateEventAsync(eventRequest);
-                ShowSuccess("Event created successfully!");
+                try
+                {
+                    // Set flag to prevent SignalR from adding the event during creation
+                    isCreatingEventLocally = true;
+                    lastLocalOperationTime = DateTime.UtcNow;
+                    
+                    Logger.LogInformation("CalendarView: Creating event locally, SignalR will be suppressed");
+                    
+                    // Create the event via API
+                    var createdEvent = await ApiService.CreateEventAsync(eventRequest);
+                    
+                    if (createdEvent != null)
+                    {
+                        // Manually add the event locally (SignalR will skip it due to isCreatingEventLocally flag)
+                        events.Add(createdEvent);
+                        await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
+                        
+                        ShowSuccess("Event created successfully!");
+                        Logger.LogInformation("CalendarView: Event {EventId} created and added locally", createdEvent.Id);
+                    }
+                }
+                finally
+                {
+                    // Reset the flag after a delay to ensure SignalR notification is caught
+                    _ = Task.Delay(3000).ContinueWith(_ => {
+                        isCreatingEventLocally = false;
+                        Logger.LogInformation("CalendarView: Local event creation flag reset");
+                    });
+                }
             }
 
             CloseModal();
-            Logger.LogInformation("CalendarView: Event saved, awaiting SignalR notification");
+            StateHasChanged();
         }
         catch (InvalidOperationException ex)
         {
