@@ -22,12 +22,6 @@
                 </div>
             </div>
             <div class="header-actions">
-                @if (!string.IsNullOrEmpty(connectionStatus))
-                {
-                    <div class="connection-indicator @(isConnected ? "connected" : "disconnected")" title="@connectionStatus">
-                        <i class="bi bi-@(isConnected ? "wifi" : "wifi-off")"></i>
-                    </div>
-                }
                 <a href="/calendar-list" class="btn btn-outline">
                     <i class="bi bi-list-task"></i>
                     <span>List View</span>
@@ -499,6 +493,13 @@
     </div>
 }
 
+<!-- Connection Status Indicator -->
+<ConnectionStatusIndicator 
+    IsOnline="@isOnline" 
+    IsSyncing="@OfflineSyncService.IsSyncing" 
+    PendingCount="@pendingOperationsCount" 
+    IsVisible="true" />
+
 <!-- Toast Notifications -->
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -509,5 +510,3 @@
 {
     <ToastNotification title="Error" message="@errorMessage" type="ToastNotification.ToastType.Error" OnClose="@(() => errorMessage = null)" />
 }
-
-<!-- CalendarView styles now in styles/components/connection-indicator.css, -->

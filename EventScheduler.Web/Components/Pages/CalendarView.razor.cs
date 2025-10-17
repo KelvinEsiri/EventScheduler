@@ -29,11 +29,11 @@ public partial class CalendarView : IAsyncDisposable
     private string? errorMessage;
     private string? successMessage;
     private int currentUserId = 0;
-    private bool isOnline = true; // Track online/offline status
+    private bool isOnline = true;
+    private int pendingOperationsCount = 0;
     
     private HubConnection? hubConnection;
     private bool isConnected = false;
-    private string? connectionStatus;
     private readonly HashSet<int> pendingLocalChanges = new();
     private DateTime? lastLocalOperationTime = null;
     
@@ -67,6 +67,10 @@ public partial class CalendarView : IAsyncDisposable
         await OfflineSyncService.InitializeAsync();
         isOnline = NetworkStatusService.IsOnline;
         NetworkStatusService.OnStatusChanged += HandleNetworkStatusChange;
+        OfflineSyncService.OnPendingOperationsCountChanged += HandlePendingCountChanged;
+        
+        // Get initial pending count
+        pendingOperationsCount = await OfflineSyncService.GetPendingOperationsCountAsync();
         
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
@@ -110,16 +114,13 @@ public partial class CalendarView : IAsyncDisposable
     {
         isOnline = online;
         Logger.LogInformation("CalendarView: Network status changed to {Status}", online ? "Online" : "Offline");
-        
-        if (online)
-        {
-            connectionStatus = "Back online - synchronizing...";
-        }
-        else
-        {
-            connectionStatus = "Working offline";
-        }
-        
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    private async Task HandlePendingCountChanged(int count)
+    {
+        pendingOperationsCount = count;
+        Logger.LogInformation("CalendarView: Pending operations count changed to {Count}", count);
         await InvokeAsync(StateHasChanged);
     }
 
@@ -132,7 +133,6 @@ public partial class CalendarView : IAsyncDisposable
             
             if (string.IsNullOrEmpty(token))
             {
-                connectionStatus = "Real-time updates unavailable";
                 Logger.LogWarning("SignalR: No authentication token available");
                 return;
             }
@@ -158,13 +158,11 @@ public partial class CalendarView : IAsyncDisposable
             await hubConnection.StartAsync();
             
             isConnected = true;
-            connectionStatus = "Connected to real-time updates";
             Logger.LogInformation("SignalR: Connected (Connection ID: {ConnectionId})", hubConnection.ConnectionId);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "SignalR: Connection failed");
-            connectionStatus = "Real-time updates unavailable";
             isConnected = false;
         }
     }
@@ -264,7 +262,6 @@ public partial class CalendarView : IAsyncDisposable
     private Task OnReconnecting(Exception? exception)
     {
         Logger.LogWarning(exception, "SignalR: ⚠️ Connection lost, attempting to reconnect...");
-        connectionStatus = "Reconnecting to real-time updates...";
         isConnected = false;
         StateHasChanged();
         return Task.CompletedTask;
@@ -273,7 +270,6 @@ public partial class CalendarView : IAsyncDisposable
     private Task OnReconnected(string? connectionId)
     {
         Logger.LogInformation("SignalR: ✅ Reconnected successfully! New Connection ID: {ConnectionId}", connectionId);
-        connectionStatus = "Reconnected to real-time updates";
         isConnected = true;
         StateHasChanged();
         return Task.CompletedTask;
@@ -282,7 +278,6 @@ public partial class CalendarView : IAsyncDisposable
     private Task OnClosed(Exception? exception)
     {
         Logger.LogError(exception, "SignalR: ❌ Connection closed");
-        connectionStatus = "Disconnected from real-time updates";
         isConnected = false;
         StateHasChanged();
         return Task.CompletedTask;
@@ -593,7 +588,7 @@ public partial class CalendarView : IAsyncDisposable
             if (eventItem != null)
             {
                 await ShowEventDetails(eventItem);
-                StateHasChanged(); // Force UI update
+                StateHasChanged();
             }
             else
             {
@@ -615,7 +610,7 @@ public partial class CalendarView : IAsyncDisposable
     {
         try
         {
-            // Validate input
+           
             if (string.IsNullOrEmpty(newStartStr) || string.IsNullOrEmpty(newEndStr))
             {
                 Logger.LogError("CalendarView: Invalid date strings - Start: '{Start}', End: '{End}'", newStartStr, newEndStr);
@@ -635,7 +630,7 @@ public partial class CalendarView : IAsyncDisposable
                 return;
             }
 
-            // Prevent editing joined events
+           
             if (eventItem.IsJoinedEvent)
             {
                 ShowError("❌ You cannot modify joined events. Only delete is allowed.");
@@ -645,7 +640,7 @@ public partial class CalendarView : IAsyncDisposable
                 return;
             }
 
-            // Parse dates with error handling
+           
             DateTime newStart, newEnd;
             try
             {
@@ -687,7 +682,7 @@ public partial class CalendarView : IAsyncDisposable
                 await OfflineSyncService.UpdateEventOfflineAsync(eventId, updateRequest);
             }
             
-            // Show success with date info
+           
             var dateStr = eventItem.StartDate.ToString("MMM dd, yyyy");
             if (!allDay)
             {
@@ -713,7 +708,7 @@ public partial class CalendarView : IAsyncDisposable
     {
         try
         {
-            // Validate input
+           
             if (string.IsNullOrEmpty(newStartStr) || string.IsNullOrEmpty(newEndStr))
             {
                 Logger.LogError("CalendarView: Invalid date strings for resize - Start: '{Start}', End: '{End}'", newStartStr, newEndStr);
@@ -733,7 +728,7 @@ public partial class CalendarView : IAsyncDisposable
                 return;
             }
 
-            // Prevent editing joined events
+           
             if (eventItem.IsJoinedEvent)
             {
                 ShowError("❌ You cannot modify joined events. Only delete is allowed.");
@@ -743,7 +738,7 @@ public partial class CalendarView : IAsyncDisposable
                 return;
             }
 
-            // Parse dates with error handling
+           
             DateTime newStart, newEnd;
             try
             {
@@ -782,7 +777,7 @@ public partial class CalendarView : IAsyncDisposable
                 await OfflineSyncService.UpdateEventOfflineAsync(eventId, updateRequest);
             }
             
-            // Calculate and show duration
+           
             var duration = eventItem.EndDate - eventItem.StartDate;
             var durationStr = duration.Hours > 0 
                 ? $"{duration.Hours}h {duration.Minutes}m" 
@@ -931,9 +926,8 @@ public partial class CalendarView : IAsyncDisposable
             // Optimistic UI update - remove immediately
             RemoveEventFromList(eventId);
             await JSRuntime.InvokeVoidAsync("removeEventFromCalendar", eventId);
-            StateHasChanged(); // Force UI refresh
+            StateHasChanged();
             
-            // Call API or queue for offline
             if (isOnline)
             {
                 await ApiService.DeleteEventAsync(eventId);
@@ -971,7 +965,7 @@ public partial class CalendarView : IAsyncDisposable
         
         Logger.LogInformation("CalendarView: Showing {Count} events for date {Date}", dayEvents.Count, date.ToString("yyyy-MM-dd"));
         showDayEventsModal = true;
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
     
     private void CloseDayEventsModal()
@@ -979,7 +973,7 @@ public partial class CalendarView : IAsyncDisposable
         showDayEventsModal = false;
         selectedDate = null;
         dayEvents.Clear();
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
     
     private void TransitionToCreateEventModal()
@@ -1008,7 +1002,7 @@ public partial class CalendarView : IAsyncDisposable
         selectedDate = null;
         
         Logger.LogInformation("CalendarView: Transitioned from day events modal to create event modal for date {Date}", dateToUse.ToString("yyyy-MM-dd"));
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
     
     private void ShowCreateModalForDate(DateTime date)
@@ -1024,7 +1018,7 @@ public partial class CalendarView : IAsyncDisposable
             IsPublic = false
         };
         showModal = true;
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
 
     private void ShowCreateModalForDateRange(DateTime startDate, DateTime endDate, bool allDay)
@@ -1041,7 +1035,7 @@ public partial class CalendarView : IAsyncDisposable
             IsPublic = false
         };
         showModal = true;
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
 
     private async Task ShowEventDetailsFromDayList(EventResponse eventItem)
@@ -1097,7 +1091,7 @@ public partial class CalendarView : IAsyncDisposable
         
         CloseDetailsModal();
         showModal = true;
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
 
     private async Task JoinEvent()
@@ -1107,7 +1101,7 @@ public partial class CalendarView : IAsyncDisposable
         successMessage = "You've joined the event!";
         CloseDetailsModal();
         await LoadEvents();
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
 
     private void AddInvitation()
