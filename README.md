@@ -12,6 +12,7 @@ A modern event scheduling application built with .NET 9.0 and Blazor Server, fol
 - ✅ **Event Status** - Track events (Scheduled, InProgress, Completed, Cancelled, Late)
 - ✅ **History Tab** - Separate view for completed and cancelled events
 - ✅ **Automatic Status Updates** - Events automatically marked as Late when overdue
+- ✅ **Offline Mode** - Work without internet, changes sync automatically when reconnected
 - ✅ **Comprehensive Logging** - Serilog with console and file output for troubleshooting
 - ✅ **Responsive UI** - Built with Bootstrap 5 for mobile and desktop
 - ✅ **Clean Architecture** - Modular, maintainable, and testable codebase
@@ -203,10 +204,12 @@ dotnet ef database drop --force --startup-project ../EventScheduler.Api
 
 ## Documentation
 
+- [Offline Mode](OFFLINE_MODE.md) - Work offline and sync when reconnected
+- [Offline Functionality Guide](docs/OFFLINE_FUNCTIONALITY.md) - Technical details of offline features
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database Setup](docs/DATABASE_SETUP.md) - Database configuration and migrations
 - [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
-- [Serilog Implementation](SERILOG_LOGGING_IMPLEMENTATION.md) - Serilog setup and configuration
+- [Calendar Troubleshooting](docs/CALENDAR_TROUBLESHOOTING.md) - Debugging calendar issues
 
 ## Contributing
 

@@ -6,9 +6,6 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
-/// <summary>
-/// Helper class for deserializing API error responses
-/// </summary>
 public class ErrorResponse
 {
     public string? Error { get; set; }
@@ -17,7 +14,6 @@ public class ErrorResponse
     
     public string GetErrorMessage()
     {
-        // If we have validation errors, combine them into a readable message
         if (Errors != null && Errors.Any())
         {
             var messages = Errors
@@ -26,15 +22,12 @@ public class ErrorResponse
             return string.Join("; ", messages);
         }
         
-        // Otherwise return the simple error or title
         return Error ?? Title ?? "An error occurred";
     }
 }
 
 /// <summary>
-/// Service for communicating with the EventScheduler API
-/// Handles all HTTP requests to the backend API including authentication and event management
-/// Follows NasosoTax reference patterns for token handling and error management
+/// Service for communicating with the EventScheduler API with offline support
 /// </summary>
 public class ApiService
 {
@@ -42,6 +35,8 @@ public class ApiService
     private readonly ILogger<ApiService> _logger;
     private readonly AuthStateProvider _authStateProvider;
     private string? _token;
+    private Func<bool>? _networkStatusProvider;
+    private Func<Task>? _offlineFallbackHandler;
 
     public ApiService(HttpClient httpClient, ILogger<ApiService> logger, AuthStateProvider authStateProvider)
     {
@@ -50,29 +45,30 @@ public class ApiService
         _authStateProvider = authStateProvider;
     }
 
-    /// <summary>
-    /// Sets the authentication token for subsequent API requests
-    /// </summary>
-    /// <param name="token">JWT bearer token</param>
+    public void SetNetworkStatusProvider(Func<bool> provider)
+    {
+        _networkStatusProvider = provider;
+    }
+
+    public void SetOfflineFallbackHandler(Func<Task> handler)
+    {
+        _offlineFallbackHandler = handler;
+    }
+
+    private bool IsOnline => _networkStatusProvider?.Invoke() ?? true;
+
     public void SetToken(string token)
     {
         _token = token;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
-    /// <summary>
-    /// Clears the authentication token (used during logout)
-    /// </summary>
     public void ClearToken()
     {
         _token = null;
         _httpClient.DefaultRequestHeaders.Authorization = null;
     }
 
-    /// <summary>
-    /// Ensures token is present in request headers before making API calls
-    /// Automatically injects token from AuthStateProvider if not already set
-    /// </summary>
     private void EnsureToken()
     {
         var token = _token ?? _authStateProvider.GetToken();
@@ -82,10 +78,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Checks if the response indicates an unauthorized access (401)
-    /// Throws UnauthorizedAccessException which protected pages should catch and handle
-    /// </summary>
     private void CheckUnauthorized(HttpResponseMessage response)
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -96,11 +88,6 @@ public class ApiService
 
     #region Authentication Endpoints
 
-    /// <summary>
-    /// Registers a new user account
-    /// </summary>
-    /// <param name="request">Registration details including username, email, and password</param>
-    /// <returns>Login response with user details and authentication token</returns>
     public async Task<LoginResponse?> RegisterAsync(RegisterRequest request)
     {
         try
@@ -116,11 +103,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Authenticates a user and returns an authentication token
-    /// </summary>
-    /// <param name="request">Login credentials (username and password)</param>
-    /// <returns>Login response with user details and authentication token</returns>
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
         try
@@ -140,20 +122,15 @@ public class ApiService
 
     #region Event Management Endpoints
 
-    /// <summary>
-    /// Retrieves all events for the authenticated user
-    /// </summary>
-    /// <returns>List of user's events</returns>
     public async Task<List<EventResponse>> GetAllEventsAsync()
     {
         try
         {
-            EnsureToken(); // Inject token into request
+            EnsureToken();
             
-            // Add timeout to prevent hanging requests
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var response = await _httpClient.GetAsync("/api/events", cts.Token);
-            CheckUnauthorized(response); // Check for 401
+            CheckUnauthorized(response);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<List<EventResponse>>() ?? new List<EventResponse>();
@@ -161,11 +138,23 @@ public class ApiService
         catch (TaskCanceledException ex)
         {
             _logger.LogWarning(ex, "Request to get events was canceled or timed out");
-            return new List<EventResponse>(); // Return empty list instead of throwing
+            if (_offlineFallbackHandler != null)
+            {
+                await _offlineFallbackHandler.Invoke();
+            }
+            return new List<EventResponse>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Network error while fetching events");
+            if (_offlineFallbackHandler != null)
+            {
+                await _offlineFallbackHandler.Invoke();
+            }
+            return new List<EventResponse>();
         }
         catch (UnauthorizedAccessException)
         {
-            // Re-throw to let calling component handle redirect
             throw;
         }
         catch (Exception ex)
@@ -175,11 +164,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Retrieves a specific event by its ID
-    /// </summary>
-    /// <param name="id">The event ID</param>
-    /// <returns>The event details or null if not found</returns>
     public async Task<EventResponse?> GetEventByIdAsync(int id)
     {
         try
@@ -202,12 +186,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Retrieves all events within a specified date range
-    /// </summary>
-    /// <param name="startDate">Start date of the range</param>
-    /// <param name="endDate">End date of the range</param>
-    /// <returns>List of events within the date range</returns>
     public async Task<List<EventResponse>> GetEventsByDateRangeAsync(DateTime startDate, DateTime endDate)
     {
         try
