@@ -268,6 +268,26 @@
                         </div>
                     }
                 </div>
+
+                @if (isAuthenticated)
+                {
+                    <div class="modal-actions" style="margin-top: 1.5rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
+                        @if (IsUserJoined(selectedEvent))
+                        {
+                            <button class="btn btn-outline" @onclick="async () => await LeaveEvent(selectedEvent.Id)" disabled="@isProcessing">
+                                <i class="bi bi-box-arrow-right"></i>
+                                @(isProcessing ? "Leaving..." : "Leave Event")
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary" @onclick="async () => await JoinEvent(selectedEvent.Id)" disabled="@isProcessing">
+                                <i class="bi bi-person-plus"></i>
+                                @(isProcessing ? "Joining..." : "Join Event")
+                            </button>
+                        }
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -279,12 +299,14 @@
     private EventResponse? selectedEvent = null;
     private bool isLoading = true;
     private bool isAuthenticated = false;
+    private bool isProcessing = false;
     private string selectedEventType = "";
     private string searchQuery = "";
     private ViewMode viewMode = ViewMode.Calendar;
     private DotNetObjectReference<PublicEvents>? dotNetHelper;
     private bool calendarInitialized = false;
     private bool initializationAttempted = false; // Prevents multiple initialization attempts
+    private int currentUserId = 0;
     
     // SignalR for real-time updates
     private HubConnection? hubConnection;
@@ -303,6 +325,15 @@
         
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        
+        if (isAuthenticated)
+        {
+            var userIdClaim = authState.User.FindFirst("userId");
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                currentUserId = userId;
+            }
+        }
         
         // Load data and setup SignalR in parallel
         await Task.WhenAll(
@@ -753,6 +784,86 @@
             "task" => "✅",
             _ => "📅"
         };
+    }
+
+    private bool IsUserJoined(EventResponse evt)
+    {
+        if (!isAuthenticated || currentUserId == 0 || evt.Invitations == null)
+            return false;
+        
+        return evt.Invitations.Any(i => i.UserId == currentUserId);
+    }
+
+    private async Task JoinEvent(int eventId)
+    {
+        if (!isAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var updatedEvent = await ApiService.JoinPublicEventAsync(eventId);
+            if (updatedEvent != null)
+            {
+                // Update the event in the list
+                var eventIndex = events.FindIndex(e => e.Id == eventId);
+                if (eventIndex >= 0)
+                {
+                    events[eventIndex] = updatedEvent;
+                }
+
+                // Update selected event if it's the same one
+                if (selectedEvent?.Id == eventId)
+                {
+                    selectedEvent = updatedEvent;
+                }
+
+                FilterEvents();
+                Logger.LogInformation("Successfully joined event {EventId}", eventId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error joining event {EventId}", eventId);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LeaveEvent(int eventId)
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            await ApiService.LeaveEventAsync(eventId);
+            
+            // Refresh the event data
+            await LoadPublicEvents();
+            
+            // Close the modal
+            CloseModal();
+            
+            Logger.LogInformation("Successfully left event {EventId}", eventId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error leaving event {EventId}", eventId);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
     }
 
     public async ValueTask DisposeAsync()

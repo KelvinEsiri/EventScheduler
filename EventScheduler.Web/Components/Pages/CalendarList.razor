@@ -73,6 +73,20 @@
         }
         else
         {
+            <!-- Tabs Section -->
+            <div class="view-toggle-container" style="margin-bottom: 1.5rem;">
+                <div class="view-toggle">
+                    <button class="toggle-btn @(activeTab == TabType.Active ? "active" : "")" @onclick="() => SetActiveTab(TabType.Active)">
+                        <i class="bi bi-calendar-check"></i>
+                        <span>Active Events</span>
+                    </button>
+                    <button class="toggle-btn @(activeTab == TabType.History ? "active" : "")" @onclick="() => SetActiveTab(TabType.History)">
+                        <i class="bi bi-clock-history"></i>
+                        <span>History</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- Filter Section -->
             <div class="filter-section">
                 <div class="filter-row">
@@ -97,6 +111,7 @@
                             <option value="">All Status</option>
                             <option value="Scheduled">Scheduled</option>
                             <option value="InProgress">In Progress</option>
+                            <option value="Late">Late</option>
                             <option value="Completed">Completed</option>
                             <option value="Cancelled">Cancelled</option>
                         </select>
@@ -426,6 +441,13 @@
     private string selectedEventType = "";
     private string selectedStatus = "";
     private string searchQuery = "";
+    private TabType activeTab = TabType.Active;
+
+    public enum TabType
+    {
+        Active,
+        History
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -490,7 +512,11 @@
         {
             isLoading = true;
             events = await ApiService.GetAllEventsAsync();
-            filteredEvents = events;
+            
+            // Update late events automatically on the client side
+            UpdateLateEvents();
+            
+            FilterEvents();
         }
         catch (Exception)
         {
@@ -502,17 +528,41 @@
         }
     }
 
+    private void UpdateLateEvents()
+    {
+        var now = DateTime.Now;
+        foreach (var evt in events)
+        {
+            if (evt.Status == "Scheduled" && evt.EndDate < now)
+            {
+                evt.Status = "Late";
+            }
+        }
+    }
+
     private void FilterEvents()
     {
         filteredEvents = events.Where(e =>
         {
+            // Filter by tab - Active shows Scheduled, InProgress, Late; History shows Completed, Cancelled
+            bool matchesTab = activeTab == TabType.Active 
+                ? (e.Status == "Scheduled" || e.Status == "InProgress" || e.Status == "Late")
+                : (e.Status == "Completed" || e.Status == "Cancelled");
+            
             bool matchesType = string.IsNullOrEmpty(selectedEventType) || e.EventType == selectedEventType;
             bool matchesStatus = string.IsNullOrEmpty(selectedStatus) || e.Status == selectedStatus;
             bool matchesSearch = string.IsNullOrEmpty(searchQuery) ||
                                 e.Title.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
                                 (e.Description?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ?? false);
-            return matchesType && matchesStatus && matchesSearch;
+            return matchesTab && matchesType && matchesStatus && matchesSearch;
         }).ToList();
+    }
+
+    private void SetActiveTab(TabType tab)
+    {
+        activeTab = tab;
+        FilterEvents();
+        StateHasChanged();
     }
 
     private void ShowCreateModal()
@@ -641,6 +691,7 @@
             "Completed" => "border-success",
             "Cancelled" => "border-danger",
             "InProgress" => "border-warning",
+            "Late" => "border-danger",
             _ => "border-primary"
         };
     }

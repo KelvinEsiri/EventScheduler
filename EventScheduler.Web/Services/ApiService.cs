@@ -384,5 +384,51 @@ public class ApiService
         }
     }
 
+    public async Task<EventResponse?> JoinPublicEventAsync(int id)
+    {
+        try
+        {
+            EnsureToken();
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var response = await _httpClient.PostAsync($"/api/events/public/{id}/join", null, cts.Token);
+            CheckUnauthorized(response);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<EventResponse>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining public event {EventId}", id);
+            throw;
+        }
+    }
+
+    public async Task LeaveEventAsync(int id)
+    {
+        try
+        {
+            EnsureToken();
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var response = await _httpClient.PostAsync($"/api/events/public/{id}/leave", null, cts.Token);
+            CheckUnauthorized(response);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error leaving event {EventId}", id);
+            throw;
+        }
+    }
+
     #endregion
 }
