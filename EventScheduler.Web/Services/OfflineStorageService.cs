@@ -96,30 +96,35 @@ public class OfflineStorageService
                 return new List<PendingOperation>();
             }
 
-            // Parse JSON manually to handle numeric Id from JavaScript
             using var doc = JsonDocument.Parse(operationsJson);
             var operations = new List<PendingOperation>();
             
             foreach (var element in doc.RootElement.EnumerateArray())
             {
-                var operation = new PendingOperation
+                try
                 {
-                    // Handle both numeric and string Id from JavaScript
-                    Id = element.GetProperty("Id").ValueKind == JsonValueKind.Number 
-                        ? element.GetProperty("Id").GetInt64().ToString() 
-                        : element.GetProperty("Id").GetString() ?? Guid.NewGuid().ToString(),
-                    Type = element.GetProperty("Type").GetString() ?? "unknown",
-                    EventId = element.TryGetProperty("EventId", out var eventIdProp) && eventIdProp.ValueKind == JsonValueKind.Number
-                        ? eventIdProp.GetInt32()
-                        : null,
-                    EventData = element.TryGetProperty("Data", out var dataProp) 
-                        ? dataProp.GetRawText() 
-                        : null,
-                    Timestamp = element.TryGetProperty("Timestamp", out var timestampProp)
-                        ? DateTime.Parse(timestampProp.GetString() ?? DateTime.UtcNow.ToString())
-                        : DateTime.UtcNow
-                };
-                operations.Add(operation);
+                    var operation = new PendingOperation
+                    {
+                        Id = element.GetProperty("Id").ValueKind == JsonValueKind.Number 
+                            ? element.GetProperty("Id").GetInt64().ToString() 
+                            : element.GetProperty("Id").GetString() ?? Guid.NewGuid().ToString(),
+                        Type = element.GetProperty("Type").GetString() ?? "unknown",
+                        EventId = element.TryGetProperty("EventId", out var eventIdProp) && eventIdProp.ValueKind == JsonValueKind.Number
+                            ? eventIdProp.GetInt32()
+                            : null,
+                        EventData = element.TryGetProperty("Data", out var dataProp) 
+                            ? dataProp.GetRawText() 
+                            : null,
+                        Timestamp = element.TryGetProperty("Timestamp", out var timestampProp)
+                            ? DateTime.Parse(timestampProp.GetString() ?? DateTime.UtcNow.ToString())
+                            : DateTime.UtcNow
+                    };
+                    operations.Add(operation);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse pending operation, skipping");
+                }
             }
             
             _logger.LogInformation("Retrieved {Count} pending operations", operations.Count);

@@ -72,14 +72,19 @@ public partial class CalendarList
 
     protected override async Task OnInitializedAsync()
     {
-        // Initialize offline sync service
         await OfflineSyncService.InitializeAsync();
         isOnline = NetworkStatusService.IsOnline;
+        
         NetworkStatusService.OnStatusChanged += async (online) => 
         {
             isOnline = online;
+            if (online)
+            {
+                await LoadEvents();
+            }
             await InvokeAsync(StateHasChanged);
         };
+        
         OfflineSyncService.OnPendingOperationsCountChanged += async (count) =>
         {
             pendingOperationsCount = count;

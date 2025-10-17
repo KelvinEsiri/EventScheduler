@@ -275,42 +275,80 @@ public class OfflineSyncService
         switch (operation.Type.ToLower())
         {
             case "create":
-                if (!string.IsNullOrEmpty(operation.EventData))
+                if (string.IsNullOrEmpty(operation.EventData))
                 {
-                    var createRequest = JsonSerializer.Deserialize<CreateEventRequest>(operation.EventData);
-                    if (createRequest != null)
-                    {
-                        await _apiService.CreateEventAsync(createRequest);
-                    }
+                    _logger.LogWarning("Create operation {OpId} missing event data", operation.Id);
+                    return;
                 }
+                
+                var createRequest = JsonSerializer.Deserialize<CreateEventRequest>(operation.EventData);
+                if (createRequest == null)
+                {
+                    _logger.LogWarning("Create operation {OpId} has invalid event data", operation.Id);
+                    return;
+                }
+                
+                if (string.IsNullOrWhiteSpace(createRequest.Title))
+                {
+                    _logger.LogWarning("Create operation {OpId} missing required Title field", operation.Id);
+                    return;
+                }
+                
+                _logger.LogInformation("Syncing create operation: {Title}", createRequest.Title);
+                await _apiService.CreateEventAsync(createRequest);
                 break;
 
             case "update":
-                if (operation.EventId.HasValue && !string.IsNullOrEmpty(operation.EventData))
+                if (!operation.EventId.HasValue)
                 {
-                    try
+                    _logger.LogWarning("Update operation {OpId} missing EventId", operation.Id);
+                    return;
+                }
+                
+                if (string.IsNullOrEmpty(operation.EventData))
+                {
+                    _logger.LogWarning("Update operation {OpId} missing event data", operation.Id);
+                    return;
+                }
+                
+                try
+                {
+                    var updateRequest = JsonSerializer.Deserialize<UpdateEventRequest>(
+                        operation.EventData, 
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    );
+                    
+                    if (updateRequest == null)
                     {
-                        // Try to deserialize as UpdateEventRequest directly
-                        var updateRequest = JsonSerializer.Deserialize<UpdateEventRequest>(operation.EventData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                        if (updateRequest != null)
-                        {
-                            _logger.LogInformation("Syncing update for event {EventId}: {Title}", operation.EventId.Value, updateRequest.Title);
-                            await _apiService.UpdateEventAsync(operation.EventId.Value, updateRequest);
-                        }
+                        _logger.LogWarning("Update operation {OpId} has invalid event data", operation.Id);
+                        return;
                     }
-                    catch (JsonException ex)
+                    
+                    if (string.IsNullOrWhiteSpace(updateRequest.Title))
                     {
-                        _logger.LogError(ex, "Failed to deserialize update operation data for event {EventId}", operation.EventId.Value);
-                        throw;
+                        _logger.LogWarning("Update operation {OpId} missing required Title field", operation.Id);
+                        return;
                     }
+                    
+                    _logger.LogInformation("Syncing update for event {EventId}: {Title}", operation.EventId.Value, updateRequest.Title);
+                    await _apiService.UpdateEventAsync(operation.EventId.Value, updateRequest);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex, "Failed to deserialize update operation {OpId} for event {EventId}", operation.Id, operation.EventId.Value);
+                    throw;
                 }
                 break;
 
             case "delete":
-                if (operation.EventId.HasValue)
+                if (!operation.EventId.HasValue)
                 {
-                    await _apiService.DeleteEventAsync(operation.EventId.Value);
+                    _logger.LogWarning("Delete operation {OpId} missing EventId", operation.Id);
+                    return;
                 }
+                
+                _logger.LogInformation("Syncing delete for event {EventId}", operation.EventId.Value);
+                await _apiService.DeleteEventAsync(operation.EventId.Value);
                 break;
 
             default:
