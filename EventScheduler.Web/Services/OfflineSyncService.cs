@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
-public class OfflineSyncService
+public class OfflineSyncService : IDisposable
 {
     private readonly ApiService _apiService;
     private readonly OfflineStorageService _offlineStorage;
@@ -13,6 +13,7 @@ public class OfflineSyncService
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private bool _isSyncing = false;
     private int _pendingCount = 0;
+    private bool _disposed = false;
 
     public event Func<string, Task>? OnSyncStatusChanged;
     public event Func<int, Task>? OnPendingOperationsCountChanged;
@@ -380,5 +381,14 @@ public class OfflineSyncService
         var pendingOperations = await _offlineStorage.GetPendingOperationsAsync();
         _pendingCount = pendingOperations.Count;
         return _pendingCount;
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _syncLock?.Dispose();
+            _disposed = true;
+        }
     }
 }
