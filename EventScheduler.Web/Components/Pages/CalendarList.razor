@@ -343,20 +343,6 @@
                                          placeholder="Where will this event take place? (optional)" />
                             </div>
 
-                            <!-- All Day Toggle -->
-                            <div class="form-group full-width">
-                                <div class="toggle-group">
-                                    <InputCheckbox class="toggle-input" id="isAllDay" @bind-Value="eventRequest.IsAllDay" />
-                                    <label class="toggle-label" for="isAllDay">
-                                        <div class="toggle-slider"></div>
-                                        <span class="toggle-text">
-                                            <i class="bi bi-sun"></i>
-                                            All Day Event
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
                             <!-- Event Type -->
                             <div class="form-group">
                                 <label class="form-label">
@@ -376,17 +362,30 @@
                                 </InputSelect>
                             </div>
 
-                            <!-- Public/Private Toggle -->
-                            <div class="form-group">
-                                <div class="toggle-group">
-                                    <InputCheckbox class="toggle-input" id="isPublic" @bind-Value="eventRequest.IsPublic" />
-                                    <label class="toggle-label" for="isPublic">
-                                        <div class="toggle-slider"></div>
-                                        <span class="toggle-text">
-                                            <i class="bi bi-globe"></i>
-                                            Public Event
-                                        </span>
-                                    </label>
+                            <!-- Quick Toggles -->
+                            <div class="form-group full-width">
+                                <div class="toggle-row">
+                                    <div class="toggle-group">
+                                        <InputCheckbox class="toggle-input" id="isAllDay" @bind-Value="eventRequest.IsAllDay" />
+                                        <label class="toggle-label" for="isAllDay">
+                                            <div class="toggle-slider"></div>
+                                            <span class="toggle-text">
+                                                <i class="bi bi-sun"></i>
+                                                All Day Event
+                                            </span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="toggle-group">
+                                        <InputCheckbox class="toggle-input" id="isPublic" @bind-Value="eventRequest.IsPublic" />
+                                        <label class="toggle-label" for="isPublic">
+                                            <div class="toggle-slider"></div>
+                                            <span class="toggle-text">
+                                                <i class="bi bi-globe"></i>
+                                                Public Event
+                                            </span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
