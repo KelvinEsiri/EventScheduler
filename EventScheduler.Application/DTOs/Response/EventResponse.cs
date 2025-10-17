@@ -20,9 +20,13 @@ public class EventResponse
     public string? CategoryName { get; set; }
     public int ParticipantsCount { get; set; }
     public List<EventInvitationResponse>? Invitations { get; set; }
+    public List<EventAttendeeResponse>? Attendees { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public bool IsJoined { get; set; }
+    public string? CreatedByUserName { get; set; }
+    public bool IsJoinedEvent { get; set; }
+    public int? OriginalEventId { get; set; }
 }
 
 public class EventInvitationResponse

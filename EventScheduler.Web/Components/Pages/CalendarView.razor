@@ -81,6 +81,15 @@
                         <div>
                             <h3>@(isEditMode ? "Edit Event" : "Create New Event")</h3>
                             <p>@(isEditMode ? "Update your event details" : "Add a new event to your calendar")</p>
+                            @if (isEditMode && selectedEvent?.IsJoinedEvent == true)
+                            {
+                                <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; padding: 0.5rem; margin-top: 0.5rem; border-radius: 0.25rem;">
+                                    <small style="color: #d97706; display: flex; align-items: center; gap: 0.25rem;">
+                                        <i class="bi bi-info-circle"></i>
+                                        This is a joined public event. You can only delete it, not edit.
+                                    </small>
+                                </div>
+                            }
                         </div>
                     </div>
                     <button class="modal-close" @onclick="CloseModal">
@@ -93,6 +102,7 @@
                     <EditForm Model="@eventRequest" OnValidSubmit="@SaveEvent">
                         <DataAnnotationsValidator />
                         
+                        <fieldset disabled="@(isEditMode && selectedEvent?.IsJoinedEvent == true)">
                         <div class="form-grid compact-grid">
                             <!-- Title -->
                             <div class="form-group full-width">
@@ -218,6 +228,7 @@
                                 </button>
                             </div>
                         </div>
+                        </fieldset>
 
                         <!-- Modal Footer -->
                         <div class="modal-footer compact-footer">
@@ -225,14 +236,17 @@
                                 <i class="bi bi-x-circle"></i>
                                 Cancel
                             </button>
-                            <button type="submit" class="btn btn-primary" disabled="@isSaving">
-                                @if (isSaving)
-                                {
-                                    <span class="spinner-small"></span>
-                                }
-                                <i class="bi bi-@(isEditMode ? "check2" : "plus-lg")"></i>
-                                @(isEditMode ? "Update" : "Create")
-                            </button>
+                            @if (!(isEditMode && selectedEvent?.IsJoinedEvent == true))
+                            {
+                                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                    @if (isSaving)
+                                    {
+                                        <span class="spinner-small"></span>
+                                    }
+                                    <i class="bi bi-@(isEditMode ? "check2" : "plus-lg")"></i>
+                                    @(isEditMode ? "Update" : "Create")
+                                </button>
+                            }
                         </div>
                     </EditForm>
                 </div>
@@ -253,9 +267,23 @@
                         <div class="modal-icon">
                             <i class="bi bi-calendar-event"></i>
                         </div>
-                        <div>
-                            <h3>@selectedEvent.Title</h3>
-                            <p>Event Details</p>
+                        <div style="flex: 1;">
+                            <h3 style="margin: 0 0 0.5rem 0;">Event Details</h3>
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                <strong style="font-size: 1.125rem;">@selectedEvent.Title</strong>
+                                @if (selectedEvent.IsJoinedEvent)
+                                {
+                                    <span class="joined-badge" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                        <i class="bi bi-calendar-check"></i> Joined
+                                    </span>
+                                }
+                                @if (selectedEvent.IsPublic)
+                                {
+                                    <span class="public-badge" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                        <i class="bi bi-globe"></i> Public
+                                    </span>
+                                }
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close" @onclick="CloseDetailsModal">
@@ -306,6 +334,17 @@
                             </div>
                         }
 
+                        @if (!string.IsNullOrEmpty(selectedEvent.CreatedByUserName))
+                        {
+                            <div class="detail-section">
+                                <label class="detail-label">
+                                    <i class="bi bi-person-circle"></i>
+                                    Created By
+                                </label>
+                                <p class="detail-text">@selectedEvent.CreatedByUserName</p>
+                            </div>
+                        }
+
                         <div class="detail-section">
                             <label class="detail-label">
                                 <i class="bi bi-tag"></i>
@@ -329,10 +368,20 @@
                 <div class="modal-footer compact-footer">
                     @if (isUserOrganizer)
                     {
-                        <button class="btn btn-secondary" @onclick="() => EditEventFromDetails(selectedEvent)">
-                            <i class="bi bi-pencil"></i>
-                            Edit
-                        </button>
+                        @if (!selectedEvent.IsJoinedEvent)
+                        {
+                            <button class="btn btn-secondary" @onclick="() => EditEventFromDetails(selectedEvent)">
+                                <i class="bi bi-pencil"></i>
+                                Edit
+                            </button>
+                        }
+                        else
+                        {
+                            <small style="color: #6b7280; display: flex; align-items: center; gap: 0.25rem;">
+                                <i class="bi bi-info-circle"></i>
+                                Joined events can only be deleted
+                            </small>
+                        }
                         <button class="btn btn-danger" @onclick="() => DeleteEventFromDetails(selectedEvent.Id)">
                             <i class="bi bi-trash"></i>
                             Delete

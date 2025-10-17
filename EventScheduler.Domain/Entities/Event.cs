@@ -19,11 +19,15 @@ public class Event
     // Foreign keys
     public int UserId { get; set; }
     public int? CategoryId { get; set; }
+    public int? CreatedByUserId { get; set; }
+    public int? OriginalEventId { get; set; }
+    public string? CreatedByUserName { get; set; }
 
     // Navigation properties
     public User User { get; set; } = null!;
     public EventCategory? Category { get; set; }
     public ICollection<EventInvitation> Invitations { get; set; } = new List<EventInvitation>();
+    public ICollection<EventAttendee> Attendees { get; set; } = new List<EventAttendee>();
 }
 
 public enum EventStatus

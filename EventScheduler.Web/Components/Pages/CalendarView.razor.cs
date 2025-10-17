@@ -487,13 +487,15 @@ public partial class CalendarView : IAsyncDisposable
             allDay = e.IsAllDay,
             backgroundColor = GetEventColor(e.Status, e.EventType),
             borderColor = GetEventColor(e.Status, e.EventType),
+            editable = !e.IsJoinedEvent, // Joined events cannot be moved/resized
             extendedProps = new
             {
                 description = e.Description,
                 location = e.Location,
                 status = e.Status,
                 eventType = e.EventType,
-                isPublic = e.IsPublic
+                isPublic = e.IsPublic,
+                isJoinedEvent = e.IsJoinedEvent
             }
         }).ToArray();
     }
@@ -644,6 +646,16 @@ public partial class CalendarView : IAsyncDisposable
                 return;
             }
 
+            // Prevent editing joined events
+            if (eventItem.IsJoinedEvent)
+            {
+                ShowError("❌ You cannot modify joined events. Only delete is allowed.");
+                Logger.LogWarning("CalendarView: User attempted to drag/drop joined event {EventId}", eventId);
+                pendingLocalChanges.Remove(eventId);
+                await JSRuntime.InvokeVoidAsync("fullCalendarInterop.revertEvent", eventId);
+                return;
+            }
+
             // Parse dates with error handling
             DateTime newStart, newEnd;
             try
@@ -720,6 +732,16 @@ public partial class CalendarView : IAsyncDisposable
             if (eventItem == null)
             {
                 ShowError("❌ Event not found.");
+                pendingLocalChanges.Remove(eventId);
+                await JSRuntime.InvokeVoidAsync("fullCalendarInterop.revertEvent", eventId);
+                return;
+            }
+
+            // Prevent editing joined events
+            if (eventItem.IsJoinedEvent)
+            {
+                ShowError("❌ You cannot modify joined events. Only delete is allowed.");
+                Logger.LogWarning("CalendarView: User attempted to resize joined event {EventId}", eventId);
                 pendingLocalChanges.Remove(eventId);
                 await JSRuntime.InvokeVoidAsync("fullCalendarInterop.revertEvent", eventId);
                 return;
@@ -876,6 +898,7 @@ public partial class CalendarView : IAsyncDisposable
             // Optimistic UI update - remove immediately
             RemoveEventFromList(eventId);
             await JSRuntime.InvokeVoidAsync("removeEventFromCalendar", eventId);
+            StateHasChanged(); // Force UI refresh
             
             // Call API
             await ApiService.DeleteEventAsync(eventId);

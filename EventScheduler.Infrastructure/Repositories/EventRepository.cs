@@ -19,6 +19,7 @@ public class EventRepository : IEventRepository
         return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
+            .Include(e => e.User)
             .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
     }
 
@@ -28,6 +29,7 @@ public class EventRepository : IEventRepository
         return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
+            .Include(e => e.User)
             .Where(e => e.UserId == userId || e.Invitations.Any(i => i.UserId == userId))
             .OrderBy(e => e.StartDate)
             .ToListAsync();
@@ -38,6 +40,7 @@ public class EventRepository : IEventRepository
         return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
+            .Include(e => e.User)
             .Where(e => (e.UserId == userId || e.Invitations.Any(i => i.UserId == userId)) &&
                        e.StartDate >= startDate &&
                        e.StartDate <= endDate)
@@ -74,6 +77,8 @@ public class EventRepository : IEventRepository
         return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
+            .Include(e => e.Attendees)
+                .ThenInclude(a => a.User)
             .Include(e => e.User)
             .Where(e => e.IsPublic)
             .OrderBy(e => e.StartDate)
@@ -85,6 +90,8 @@ public class EventRepository : IEventRepository
         return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
+            .Include(e => e.Attendees)
+                .ThenInclude(a => a.User)
             .Include(e => e.User)
             .FirstOrDefaultAsync(e => e.Id == id && e.IsPublic);
     }

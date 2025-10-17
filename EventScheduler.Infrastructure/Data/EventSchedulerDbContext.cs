@@ -14,6 +14,7 @@ public class EventSchedulerDbContext : DbContext
     public DbSet<Event> Events { get; set; }
     public DbSet<EventCategory> EventCategories { get; set; }
     public DbSet<EventInvitation> EventInvitations { get; set; }
+    public DbSet<EventAttendee> EventAttendees { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,6 +85,23 @@ public class EventSchedulerDbContext : DbContext
                 .WithMany(u => u.EventInvitations)
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // EventAttendee configuration
+        modelBuilder.Entity<EventAttendee>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.EventId, e.UserId }).IsUnique(); // One user can only attend once
+
+            entity.HasOne(e => e.Event)
+                .WithMany(e => e.Attendees)
+                .HasForeignKey(e => e.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.AttendingEvents)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

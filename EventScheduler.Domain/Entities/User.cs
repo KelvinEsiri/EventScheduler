@@ -17,4 +17,5 @@ public class User
     public ICollection<Event> Events { get; set; } = new List<Event>();
     public ICollection<EventCategory> EventCategories { get; set; } = new List<EventCategory>();
     public ICollection<EventInvitation> EventInvitations { get; set; } = new List<EventInvitation>();
+    public ICollection<EventAttendee> AttendingEvents { get; set; } = new List<EventAttendee>();
 }

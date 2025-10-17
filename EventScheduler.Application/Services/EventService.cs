@@ -121,6 +121,13 @@ public class EventService : IEventService
             throw new InvalidOperationException("Event not found or you don't have permission to edit it");
         }
 
+        // Prevent editing joined events (events that were copied from public events)
+        if (eventEntity.OriginalEventId.HasValue)
+        {
+            _logger.LogWarning("User {UserId} attempted to edit joined event {EventId} (original: {OriginalId})", userId, eventId, eventEntity.OriginalEventId.Value);
+            throw new InvalidOperationException("Cannot edit joined events. You can only delete them.");
+        }
+
         if (request.EndDate < request.StartDate)
         {
             _logger.LogWarning("Invalid date range for event {EventId}: End date before start date", eventId);
@@ -223,6 +230,24 @@ public class EventService : IEventService
         var eventEntity = await _eventRepository.GetByIdAsync(eventId, userId);
         var eventTitle = eventEntity?.Title ?? "Unknown Event";
         
+        // If this is a joined event (has OriginalEventId), remove user from attendees
+        if (eventEntity?.OriginalEventId.HasValue == true)
+        {
+            var originalEventId = eventEntity.OriginalEventId.Value;
+            var originalEvent = await _eventRepository.GetPublicEventByIdAsync(originalEventId);
+            
+            if (originalEvent != null)
+            {
+                var attendee = originalEvent.Attendees.FirstOrDefault(a => a.UserId == userId);
+                if (attendee != null)
+                {
+                    originalEvent.Attendees.Remove(attendee);
+                    await _eventRepository.UpdateAsync(originalEvent);
+                    _logger.LogInformation("Removed user {UserId} from attendees of original event {OriginalEventId}", userId, originalEventId);
+                }
+            }
+        }
+        
         await _eventRepository.DeleteAsync(eventId, userId);
         _logger.LogInformation("Event {EventId} deleted successfully", eventId);
 
@@ -303,12 +328,19 @@ public class EventService : IEventService
     {
         _logger.LogInformation("User {UserId} attempting to join event {EventId}", userId, eventId);
         
-        var eventEntity = await _eventRepository.GetPublicEventByIdAsync(eventId);
+        var publicEvent = await _eventRepository.GetPublicEventByIdAsync(eventId);
         
-        if (eventEntity == null || !eventEntity.IsPublic)
+        if (publicEvent == null || !publicEvent.IsPublic)
         {
             _logger.LogWarning("Event {EventId} not found or not public", eventId);
             throw new InvalidOperationException("Event not found or is not public");
+        }
+
+        // Prevent users from joining their own events
+        if (publicEvent.UserId == userId)
+        {
+            _logger.LogWarning("User {UserId} attempted to join their own event {EventId}", userId, eventId);
+            throw new InvalidOperationException("You cannot join your own event");
         }
 
         var user = await _userRepository.GetByIdAsync(userId);
@@ -318,55 +350,87 @@ public class EventService : IEventService
             throw new InvalidOperationException("User not found");
         }
 
-        // Check if user already joined
-        var existingInvitation = eventEntity.Invitations.FirstOrDefault(i => i.UserId == userId);
-        if (existingInvitation != null)
+        // Check if user already has a copy of this event
+        var userEvents = await _eventRepository.GetAllAsync(userId);
+        var existingJoinedEvent = userEvents.FirstOrDefault(e => e.OriginalEventId == eventId);
+        if (existingJoinedEvent != null)
         {
-            _logger.LogInformation("User {UserId} already joined event {EventId}", userId, eventId);
-            return MapToResponse(eventEntity);
+            _logger.LogInformation("User {UserId} already has a copy of event {EventId}", userId, eventId);
+            return MapToResponse(existingJoinedEvent);
         }
 
-        // Add user as participant
-        var invitation = new EventInvitation
+        // Add user to the public event's attendees list
+        var existingAttendee = publicEvent.Attendees.FirstOrDefault(a => a.UserId == userId);
+        if (existingAttendee == null)
         {
-            EventId = eventId,
-            InviteeName = user.FullName,
-            InviteeEmail = user.Email,
-            UserId = userId,
-            InvitedAt = DateTime.UtcNow
+            var attendee = new EventAttendee
+            {
+                EventId = eventId,
+                UserId = userId,
+                JoinedAt = DateTime.UtcNow
+            };
+            publicEvent.Attendees.Add(attendee);
+            await _eventRepository.UpdateAsync(publicEvent);
+            _logger.LogInformation("User {UserId} added to attendees list of event {EventId}", userId, eventId);
+        }
+
+        // Create a copy of the event for the user
+        var joinedEvent = new Event
+        {
+            Title = publicEvent.Title,
+            Description = publicEvent.Description,
+            StartDate = publicEvent.StartDate,
+            EndDate = publicEvent.EndDate,
+            Location = publicEvent.Location,
+            IsAllDay = publicEvent.IsAllDay,
+            Color = publicEvent.Color,
+            Status = publicEvent.Status,
+            EventType = publicEvent.EventType,
+            IsPublic = false, // User's copy is private
+            CategoryId = publicEvent.CategoryId,
+            UserId = userId, // This event belongs to the joining user
+            CreatedByUserId = publicEvent.UserId, // Track original creator ID
+            CreatedByUserName = publicEvent.User?.FullName, // Store creator name directly
+            OriginalEventId = eventId, // Link to original public event
+            CreatedAt = DateTime.UtcNow
         };
+
+        var createdEvent = await _eventRepository.CreateAsync(joinedEvent);
+        _logger.LogInformation("User {UserId} successfully joined event {EventId}, created copy with Id {CopyId}", userId, eventId, createdEvent.Id);
         
-        eventEntity.Invitations.Add(invitation);
-        await _eventRepository.UpdateAsync(eventEntity);
-        
-        _logger.LogInformation("User {UserId} successfully joined event {EventId}", userId, eventId);
-        
-        return MapToResponse(eventEntity);
+        return MapToResponse(createdEvent);
     }
 
     public async Task LeaveEventAsync(int userId, int eventId)
     {
         _logger.LogInformation("User {UserId} attempting to leave event {EventId}", userId, eventId);
         
-        var eventEntity = await _eventRepository.GetPublicEventByIdAsync(eventId);
+        // Find the user's copy of the joined event
+        var userEvents = await _eventRepository.GetAllAsync(userId);
+        var joinedEventCopy = userEvents.FirstOrDefault(e => e.OriginalEventId == eventId && e.UserId == userId);
         
-        if (eventEntity == null || !eventEntity.IsPublic)
+        if (joinedEventCopy == null)
         {
-            _logger.LogWarning("Event {EventId} not found or not public", eventId);
-            throw new InvalidOperationException("Event not found or is not public");
+            _logger.LogWarning("User {UserId} has not joined event {EventId}", userId, eventId);
+            throw new InvalidOperationException("You have not joined this event");
         }
 
-        var invitation = eventEntity.Invitations.FirstOrDefault(i => i.UserId == userId);
-        if (invitation != null)
+        // Remove user from the public event's attendees list
+        var publicEvent = await _eventRepository.GetPublicEventByIdAsync(eventId);
+        if (publicEvent != null)
         {
-            eventEntity.Invitations.Remove(invitation);
-            await _eventRepository.UpdateAsync(eventEntity);
-            _logger.LogInformation("User {UserId} successfully left event {EventId}", userId, eventId);
+            var attendee = publicEvent.Attendees.FirstOrDefault(a => a.UserId == userId);
+            if (attendee != null)
+            {
+                publicEvent.Attendees.Remove(attendee);
+                await _eventRepository.UpdateAsync(publicEvent);
+                _logger.LogInformation("User {UserId} removed from attendees list of event {EventId}", userId, eventId);
+            }
         }
-        else
-        {
-            _logger.LogInformation("User {UserId} was not a participant of event {EventId}", userId, eventId);
-        }
+
+        // Delete the user's copy of the event
+        await _eventRepository.DeleteAsync(joinedEventCopy.Id, userId);
+        _logger.LogInformation("User {UserId} successfully left event {EventId} by deleting copy {CopyId}", userId, eventId, joinedEventCopy.Id);
     }
 
     public async Task UpdateEventStatusesAsync()
@@ -394,6 +458,20 @@ public class EventService : IEventService
 
     private EventResponse MapToResponse(Event eventEntity)
     {
+        // Determine creator username
+        string? createdByUserName = null;
+        
+        if (eventEntity.OriginalEventId.HasValue)
+        {
+            // This is a joined event - use the stored CreatedByUserName
+            createdByUserName = eventEntity.CreatedByUserName;
+        }
+        else if (eventEntity.User != null)
+        {
+            // For original events (not joined), show the owner as creator
+            createdByUserName = eventEntity.User.FullName;
+        }
+
         return new EventResponse
         {
             Id = eventEntity.Id,
@@ -410,7 +488,9 @@ public class EventService : IEventService
             UserId = eventEntity.UserId,
             CategoryId = eventEntity.CategoryId,
             CategoryName = eventEntity.Category?.Name,
-            ParticipantsCount = eventEntity.Invitations?.Count ?? 0,
+            ParticipantsCount = eventEntity.IsPublic 
+                ? (eventEntity.Attendees?.Count ?? 0) // Use attendees count for public events
+                : (eventEntity.Invitations?.Count ?? 0), // Use invitations count for private events
             Invitations = eventEntity.Invitations?.Select(i => new EventInvitationResponse
             {
                 Id = i.Id,
@@ -419,9 +499,20 @@ public class EventService : IEventService
                 InvitedAt = i.InvitedAt,
                 UserId = i.UserId
             }).ToList(),
+            Attendees = eventEntity.Attendees?.Select(a => new EventAttendeeResponse
+            {
+                Id = a.Id,
+                UserId = a.UserId,
+                UserName = a.User?.FullName ?? "Unknown",
+                UserEmail = a.User?.Email,
+                JoinedAt = a.JoinedAt
+            }).ToList(),
             CreatedAt = eventEntity.CreatedAt,
             UpdatedAt = eventEntity.UpdatedAt,
-            IsJoined = false
+            IsJoined = false,
+            CreatedByUserName = createdByUserName,
+            IsJoinedEvent = eventEntity.OriginalEventId.HasValue,
+            OriginalEventId = eventEntity.OriginalEventId
         };
     }
 

@@ -20,6 +20,7 @@ public partial class PublicEvents : IAsyncDisposable
 
     private List<EventResponse> events = new();
     private List<EventResponse> filteredEvents = new();
+    private List<EventResponse> userEvents = new(); // User's personal events for checking joined status
     private EventResponse? selectedEvent = null;
     private bool isLoading = true;
     private bool isAuthenticated = false;
@@ -60,10 +61,15 @@ public partial class PublicEvents : IAsyncDisposable
         }
         
         // Load data and setup SignalR in parallel
-        await Task.WhenAll(
-            LoadPublicEvents(),
-            InitializeSignalR()
-        );
+        var loadTasks = new List<Task> { LoadPublicEvents(), InitializeSignalR() };
+        
+        // If authenticated, also load user's events to check joined status
+        if (isAuthenticated)
+        {
+            loadTasks.Add(LoadUserEvents());
+        }
+        
+        await Task.WhenAll(loadTasks);
         
         Logger.LogInformation("PublicEvents: Initialization complete, loading={IsLoading}, events={Count}", isLoading, events.Count);
     }
@@ -126,6 +132,25 @@ public partial class PublicEvents : IAsyncDisposable
                     await InitializeCalendar();
                 }
             }
+        }
+    }
+
+    private async Task LoadUserEvents()
+    {
+        try
+        {
+            Logger.LogInformation("PublicEvents: Loading user's events");
+            var response = await ApiService.GetAllEventsAsync();
+            if (response != null)
+            {
+                userEvents = response;
+                Logger.LogInformation("PublicEvents: Loaded {Count} user events", userEvents.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "PublicEvents: Error loading user events");
+            userEvents = new List<EventResponse>();
         }
     }
 
@@ -482,10 +507,11 @@ public partial class PublicEvents : IAsyncDisposable
 
     private bool IsUserJoined(EventResponse evt)
     {
-        if (!isAuthenticated || currentUserId == 0 || evt.Invitations == null)
+        if (!isAuthenticated || currentUserId == 0 || userEvents == null)
             return false;
         
-        return evt.Invitations.Any(i => i.UserId == currentUserId);
+        // Check if the user has a copy of this public event (joined event with matching OriginalEventId)
+        return userEvents.Any(e => e.IsJoinedEvent && e.OriginalEventId == evt.Id);
     }
 
     private async Task JoinEvent(int eventId)
@@ -495,23 +521,18 @@ public partial class PublicEvents : IAsyncDisposable
 
         try
         {
-            var updatedEvent = await ApiService.JoinPublicEventAsync(eventId);
-            if (updatedEvent != null)
+            var joinedEventCopy = await ApiService.JoinPublicEventAsync(eventId);
+            if (joinedEventCopy != null)
             {
-                // Update the event in the list
-                var eventIndex = events.FindIndex(e => e.Id == eventId);
-                if (eventIndex >= 0)
-                {
-                    events[eventIndex] = updatedEvent;
-                }
-
-                // Update selected event if it's the same one
+                // Reload user events to update joined status
+                await LoadUserEvents();
+                
+                // Update selected event to close modal and show joined status
                 if (selectedEvent?.Id == eventId)
                 {
-                    selectedEvent = updatedEvent;
+                    StateHasChanged(); // Update UI to reflect joined status
                 }
 
-                FilterEvents();
                 Logger.LogInformation("Successfully joined event {EventId}", eventId);
             }
         }
@@ -535,8 +556,8 @@ public partial class PublicEvents : IAsyncDisposable
         {
             await ApiService.LeaveEventAsync(eventId);
             
-            // Refresh the event data
-            await LoadPublicEvents();
+            // Reload user events to update joined status
+            await LoadUserEvents();
             
             // Close the modal
             CloseModal();

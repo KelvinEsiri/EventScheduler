@@ -3,6 +3,7 @@ using System;
 using EventScheduler.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EventScheduler.Infrastructure.Migrations
 {
     [DbContext(typeof(EventSchedulerDbContext))]
-    partial class EventSchedulerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251017045828_AddCreatedByAndOriginalEventIdToEvent")]
+    partial class AddCreatedByAndOriginalEventIdToEvent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.10");
@@ -34,9 +37,6 @@ namespace EventScheduler.Infrastructure.Migrations
 
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("CreatedByUserName")
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
@@ -87,31 +87,6 @@ namespace EventScheduler.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Events");
-                });
-
-            modelBuilder.Entity("EventScheduler.Domain.Entities.EventAttendee", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("EventId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("JoinedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("EventId", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("EventAttendees");
                 });
 
             modelBuilder.Entity("EventScheduler.Domain.Entities.EventCategory", b =>
@@ -247,25 +222,6 @@ namespace EventScheduler.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("EventScheduler.Domain.Entities.EventAttendee", b =>
-                {
-                    b.HasOne("EventScheduler.Domain.Entities.Event", "Event")
-                        .WithMany("Attendees")
-                        .HasForeignKey("EventId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("EventScheduler.Domain.Entities.User", "User")
-                        .WithMany("AttendingEvents")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Event");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("EventScheduler.Domain.Entities.EventCategory", b =>
                 {
                     b.HasOne("EventScheduler.Domain.Entities.User", "User")
@@ -297,8 +253,6 @@ namespace EventScheduler.Infrastructure.Migrations
 
             modelBuilder.Entity("EventScheduler.Domain.Entities.Event", b =>
                 {
-                    b.Navigation("Attendees");
-
                     b.Navigation("Invitations");
                 });
 
@@ -309,8 +263,6 @@ namespace EventScheduler.Infrastructure.Migrations
 
             modelBuilder.Entity("EventScheduler.Domain.Entities.User", b =>
                 {
-                    b.Navigation("AttendingEvents");
-
                     b.Navigation("EventCategories");
 
                     b.Navigation("EventInvitations");
