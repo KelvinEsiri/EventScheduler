@@ -1,7 +1,6 @@
 window.networkStatus = (function() {
     let dotNetRef = null;
     let isServerReachable = true;
-    let isBlazorConnected = true; // Track Blazor connection state
     let serverCheckInterval = null;
     let apiBaseUrl = null;
     
@@ -13,37 +12,10 @@ window.networkStatus = (function() {
         window.addEventListener('online', handleBrowserOnline);
         window.addEventListener('offline', handleBrowserOffline);
         
-        // Listen for Blazor connection state
-        if (window.Blazor) {
-            // Hook into Blazor's reconnection events
-            const originalReconnectionHandler = window.Blazor.defaultReconnectionHandler;
-            if (originalReconnectionHandler) {
-                const originalOnConnectionDown = originalReconnectionHandler.onConnectionDown;
-                originalReconnectionHandler.onConnectionDown = function() {
-                    console.log('[NetworkStatus] Blazor connection down - treating as offline');
-                    isBlazorConnected = false;
-                    handleServerUnreachable();
-                    if (originalOnConnectionDown) {
-                        originalOnConnectionDown.apply(this, arguments);
-                    }
-                };
-                
-                const originalOnConnectionUp = originalReconnectionHandler.onConnectionUp;
-                originalReconnectionHandler.onConnectionUp = function() {
-                    console.log('[NetworkStatus] Blazor connection restored - treating as online');
-                    isBlazorConnected = true;
-                    handleServerReachable();
-                    if (originalOnConnectionUp) {
-                        originalOnConnectionUp.apply(this, arguments);
-                    }
-                };
-            }
-        }
-        
         // Start periodic server health checks
         startServerHealthCheck();
         
-        console.log('[NetworkStatus] Monitor initialized - checking both browser and server connectivity');
+        console.log('[NetworkStatus] Monitor initialized - checking browser and server connectivity');
     }
     
     function handleBrowserOnline() {
@@ -60,8 +32,7 @@ window.networkStatus = (function() {
         if (!isServerReachable) {
             console.log('[NetworkStatus] Server is now reachable');
             isServerReachable = true;
-            // Wait a bit for Blazor to reconnect before notifying
-            setTimeout(() => notifyOnline(), 1000);
+            notifyOnline();
         }
     }
     
@@ -76,13 +47,6 @@ window.networkStatus = (function() {
     function notifyOnline() {
         console.log('[NetworkStatus] Status: ONLINE');
         if (dotNetRef) {
-            // Only notify if Blazor is actually connected
-            if (!isBlazorConnected) {
-                console.log('[NetworkStatus] Blazor not reconnected yet, will retry on next health check');
-                return; // Skip notification, will retry when Blazor reconnects
-            }
-            
-            // Connection is ready, safe to invoke
             try {
                 dotNetRef.invokeMethodAsync('UpdateNetworkStatus', true)
                     .catch(err => {
