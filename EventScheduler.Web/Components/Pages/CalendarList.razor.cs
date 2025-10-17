@@ -10,6 +10,8 @@ namespace EventScheduler.Web.Components.Pages;
 public partial class CalendarList
 {
     [Inject] private ApiService ApiService { get; set; } = default!;
+    [Inject] private OfflineSyncService OfflineSyncService { get; set; } = default!;
+    [Inject] private NetworkStatusService NetworkStatusService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
@@ -27,6 +29,7 @@ public partial class CalendarList
     private string selectedStatus = "";
     private string searchQuery = "";
     private TabType activeTab = TabType.Active;
+    private bool isOnline = true;
 
     public enum TabType
     {
@@ -68,6 +71,15 @@ public partial class CalendarList
 
     protected override async Task OnInitializedAsync()
     {
+        // Initialize offline sync service
+        await OfflineSyncService.InitializeAsync();
+        isOnline = NetworkStatusService.IsOnline;
+        NetworkStatusService.OnStatusChanged += async (online) => 
+        {
+            isOnline = online;
+            await InvokeAsync(StateHasChanged);
+        };
+        
         // Try to check auth, but don't redirect here - wait for OnAfterRenderAsync
         // because during prerendering, localStorage hasn't been read yet
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -96,7 +108,8 @@ public partial class CalendarList
         try
         {
             isLoading = true;
-            events = await ApiService.GetAllEventsAsync();
+            // Use OfflineSyncService which handles online/offline automatically
+            events = await OfflineSyncService.LoadEventsAsync();
             FilterEvents();
         }
         catch (Exception)
@@ -205,7 +218,15 @@ public partial class CalendarList
                     IsPublic = eventRequest.IsPublic,
                     Invitations = eventRequest.Invitations?.Where(i => !string.IsNullOrWhiteSpace(i.InviteeName) && !string.IsNullOrWhiteSpace(i.InviteeEmail)).ToList()
                 };
-                await ApiService.UpdateEventAsync(editEventId, updateRequest);
+                
+                if (isOnline)
+                {
+                    await ApiService.UpdateEventAsync(editEventId, updateRequest);
+                }
+                else
+                {
+                    await OfflineSyncService.UpdateEventOfflineAsync(editEventId, updateRequest);
+                }
             }
             else
             {
@@ -216,11 +237,24 @@ public partial class CalendarList
                         .Where(i => !string.IsNullOrWhiteSpace(i.InviteeName) && !string.IsNullOrWhiteSpace(i.InviteeEmail))
                         .ToList();
                 }
-                await ApiService.CreateEventAsync(eventRequest);
+                
+                if (isOnline)
+                {
+                    await ApiService.CreateEventAsync(eventRequest);
+                }
+                else
+                {
+                    await OfflineSyncService.CreateEventOfflineAsync(eventRequest);
+                }
             }
 
             CloseModal();
             await LoadEvents();
+            
+            if (!isOnline)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Changes saved offline and will sync when you're back online.");
+            }
         }
         catch (InvalidOperationException ex)
         {
@@ -242,8 +276,21 @@ public partial class CalendarList
         {
             try
             {
-                await ApiService.DeleteEventAsync(id);
+                if (isOnline)
+                {
+                    await ApiService.DeleteEventAsync(id);
+                }
+                else
+                {
+                    await OfflineSyncService.DeleteEventOfflineAsync(id);
+                }
+                
                 await LoadEvents();
+                
+                if (!isOnline)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Event deleted offline and will sync when you're back online.");
+                }
             }
             catch (Exception ex)
             {
