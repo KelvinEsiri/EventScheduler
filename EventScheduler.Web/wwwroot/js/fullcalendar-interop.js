@@ -1,11 +1,11 @@
-// FullCalendar Interop for Blazor - Optimized
+// FullCalendar Interop for Blazor - Multi-Instance Support
 window.fullCalendarInterop = {
-    calendar: null,
-    dotNetHelper: null,
+    calendars: {},  // Multiple calendars by elementId
+    dotNetHelpers: {},  // Store dotNetHelper per calendar
     eventChangeCache: {},
 
     initialize: function (elementId, dotNetHelper, events, editable) {
-        console.log('Initializing FullCalendar with', events.length, 'events');
+        console.log(`[${elementId}] Initializing FullCalendar with ${events.length} events`);
         
         // Validation
         if (typeof FullCalendar === 'undefined') {
@@ -15,20 +15,21 @@ window.fullCalendarInterop = {
         
         const calendarEl = document.getElementById(elementId);
         if (!calendarEl) {
-            console.error('Calendar element not found:', elementId);
+            console.error(`Calendar element not found: ${elementId}`);
             return false;
         }
         
-        this.dotNetHelper = dotNetHelper;
+        this.dotNetHelpers[elementId] = dotNetHelper;
 
-        // Destroy existing calendar if any
-        if (this.calendar) {
-            this.calendar.destroy();
-            this.calendar = null;
+        // Destroy existing calendar for this element if any
+        if (this.calendars[elementId]) {
+            console.log(`[${elementId}] Destroying existing calendar`);
+            this.calendars[elementId].destroy();
+            delete this.calendars[elementId];
         }
 
         // Optimized calendar configuration
-        this.calendar = new FullCalendar.Calendar(calendarEl, {
+        this.calendars[elementId] = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             headerToolbar: {
                 left: 'prev,next today',
@@ -71,31 +72,75 @@ window.fullCalendarInterop = {
                 timeGridDay: { displayEventTime: true }
             },
             
-            // Optimized event handlers with error handling
+            // Event handlers with elementId context
             eventClick: (info) => {
                 info.jsEvent.preventDefault();
                 const eventId = parseInt(info.event.id);
-                this.invokeDotNet('OnEventClick', eventId);
+                this.invokeDotNet(elementId, 'OnEventClick', eventId);
             },
             
             select: (info) => {
-                this.invokeDotNet('OnDateSelect', info.startStr, info.endStr, info.allDay);
+                this.invokeDotNet(elementId, 'OnDateSelect', info.startStr, info.endStr, info.allDay);
             },
             
             dateClick: (info) => {
-                this.invokeDotNet('OnDateClick', info.dateStr);
+                this.invokeDotNet(elementId, 'OnDateClick', info.dateStr);
             },
             
             eventDrop: (info) => {
                 const eventId = parseInt(info.event.id);
                 this.cacheEventState(eventId, info.oldEvent);
-                this.invokeDotNet('OnEventDrop', eventId, info.event.startStr, info.event.endStr, info.event.allDay);
+                
+                if (!info.event.startStr || !info.event.endStr) {
+                    console.error('Invalid date strings:', info.event.startStr, info.event.endStr);
+                    this.revertEvent(elementId, eventId);
+                    return;
+                }
+                
+                info.el.style.opacity = '0.6';
+                info.el.classList.add('event-saving');
+                
+                this.invokeDotNet(elementId, 'OnEventDrop', eventId, info.event.startStr, info.event.endStr, info.event.allDay)
+                    .then(() => {
+                        info.el.style.opacity = '1';
+                        info.el.classList.remove('event-saving');
+                        info.el.classList.add('event-saved');
+                        setTimeout(() => info.el.classList.remove('event-saved'), 1000);
+                    })
+                    .catch((err) => {
+                        console.error('Error saving event:', err);
+                        info.el.style.opacity = '1';
+                        info.el.classList.remove('event-saving');
+                        this.revertEvent(elementId, eventId);
+                    });
             },
             
             eventResize: (info) => {
                 const eventId = parseInt(info.event.id);
                 this.cacheEventState(eventId, info.oldEvent);
-                this.invokeDotNet('OnEventResize', eventId, info.event.startStr, info.event.endStr);
+                
+                if (!info.event.startStr || !info.event.endStr) {
+                    console.error('Invalid date strings for resize:', info.event.startStr, info.event.endStr);
+                    this.revertEvent(elementId, eventId);
+                    return;
+                }
+                
+                info.el.style.opacity = '0.6';
+                info.el.classList.add('event-saving');
+                
+                this.invokeDotNet(elementId, 'OnEventResize', eventId, info.event.startStr, info.event.endStr)
+                    .then(() => {
+                        info.el.style.opacity = '1';
+                        info.el.classList.remove('event-saving');
+                        info.el.classList.add('event-saved');
+                        setTimeout(() => info.el.classList.remove('event-saved'), 1000);
+                    })
+                    .catch((err) => {
+                        console.error('Error resizing event:', err);
+                        info.el.style.opacity = '1';
+                        info.el.classList.remove('event-saving');
+                        this.revertEvent(elementId, eventId);
+                    });
             },
 
             eventDidMount: (info) => {
@@ -105,19 +150,32 @@ window.fullCalendarInterop = {
             }
         });
 
-        this.calendar.render();
-        console.log('FullCalendar initialized successfully');
+        this.calendars[elementId].render();
+        
+        // Force calendar to recalculate size after render
+        setTimeout(() => {
+            if (this.calendars[elementId]) {
+                this.calendars[elementId].updateSize();
+                console.log(`[${elementId}] Calendar size updated`);
+            }
+        }, 100);
+        
+        console.log(`[${elementId}] FullCalendar initialized successfully`);
         return true;
     },
 
-    // Helper methods for optimized operations
-    invokeDotNet: function(methodName, ...args) {
-        if (!this.dotNetHelper) {
-            console.error('DotNet helper not available');
-            return;
+    // Helper method to invoke .NET methods
+    invokeDotNet: function(elementId, methodName, ...args) {
+        const helper = this.dotNetHelpers[elementId];
+        if (!helper) {
+            console.error(`[${elementId}] DotNet helper not available`);
+            return Promise.reject('DotNet helper not available');
         }
-        this.dotNetHelper.invokeMethodAsync(methodName, ...args)
-            .catch(err => console.error(`Error calling ${methodName}:`, err));
+        return helper.invokeMethodAsync(methodName, ...args)
+            .catch(err => {
+                console.error(`[${elementId}] Error calling ${methodName}:`, err);
+                throw err;
+            });
     },
 
     cacheEventState: function(eventId, oldEvent) {
@@ -128,27 +186,44 @@ window.fullCalendarInterop = {
         };
     },
 
-    updateEvents: function (events) {
-        if (!this.calendar) return;
-        this.calendar.removeAllEvents();
-        this.calendar.addEventSource(events);
+    // Get calendar by ID (defaults to first calendar if not specified)
+    getCalendar: function(elementId) {
+        if (elementId && this.calendars[elementId]) {
+            return this.calendars[elementId];
+        }
+        // Fallback to first calendar for backward compatibility
+        const calendarIds = Object.keys(this.calendars);
+        return calendarIds.length > 0 ? this.calendars[calendarIds[0]] : null;
     },
 
-    addEvent: function (event) {
-        if (this.calendar) {
-            this.calendar.addEvent(event);
+    updateEvents: function (events, elementId = null) {
+        const calendar = elementId ? this.calendars[elementId] : this.getCalendar();
+        if (!calendar) {
+            console.warn('No calendar available for updateEvents');
+            return;
+        }
+        calendar.removeAllEvents();
+        calendar.addEventSource(events);
+    },
+
+    addEvent: function (event, elementId = null) {
+        const calendar = elementId ? this.calendars[elementId] : this.getCalendar();
+        if (calendar) {
+            calendar.addEvent(event);
         }
     },
 
-    removeEvent: function (eventId) {
-        if (!this.calendar) return;
-        const event = this.calendar.getEventById(eventId);
+    removeEvent: function (eventId, elementId = null) {
+        const calendar = elementId ? this.calendars[elementId] : this.getCalendar();
+        if (!calendar) return;
+        const event = calendar.getEventById(eventId);
         if (event) event.remove();
     },
 
-    updateEvent: function (eventId, updates) {
-        if (!this.calendar) return;
-        const event = this.calendar.getEventById(eventId);
+    updateEvent: function (eventId, updates, elementId = null) {
+        const calendar = elementId ? this.calendars[elementId] : this.getCalendar();
+        if (!calendar) return;
+        const event = calendar.getEventById(eventId);
         if (!event) return;
         
         event.setProp('title', updates.title);
@@ -160,10 +235,11 @@ window.fullCalendarInterop = {
         event.setProp('backgroundColor', updates.color);
     },
 
-    revertEvent: function(eventId) {
+    revertEvent: function(elementId, eventId) {
         const cached = this.eventChangeCache[eventId];
-        if (cached && this.calendar) {
-            const event = this.calendar.getEventById(eventId.toString());
+        const calendar = this.calendars[elementId];
+        if (cached && calendar) {
+            const event = calendar.getEventById(eventId.toString());
             if (event) {
                 event.setStart(cached.start);
                 event.setEnd(cached.end);
@@ -173,26 +249,51 @@ window.fullCalendarInterop = {
         delete this.eventChangeCache[eventId];
     },
 
-    destroy: function () {
-        if (this.calendar) {
-            this.calendar.destroy();
-            this.calendar = null;
+    destroy: function (elementId = null) {
+        if (elementId) {
+            // Destroy specific calendar
+            if (this.calendars[elementId]) {
+                this.calendars[elementId].destroy();
+                delete this.calendars[elementId];
+            }
+            if (this.dotNetHelpers[elementId]) {
+                delete this.dotNetHelpers[elementId];
+            }
+            console.log(`[${elementId}] Calendar destroyed`);
+        } else {
+            // Destroy all calendars (backward compatibility)
+            Object.keys(this.calendars).forEach(id => {
+                this.calendars[id].destroy();
+            });
+            this.calendars = {};
+            this.dotNetHelpers = {};
+            this.eventChangeCache = {};
+            console.log('All calendars destroyed');
         }
-        this.dotNetHelper = null;
-        this.eventChangeCache = {};
     },
 
-    refetch: function () {
-        if (this.calendar) {
-            this.calendar.refetchEvents();
+    refetch: function (elementId = null) {
+        const calendar = elementId ? this.calendars[elementId] : this.getCalendar();
+        if (calendar) {
+            calendar.refetchEvents();
+        }
+    },
+
+    // Force calendar to recalculate its size
+    updateSize: function (elementId = null) {
+        const calendar = elementId ? this.calendars[elementId] : this.getCalendar();
+        if (calendar) {
+            calendar.updateSize();
+            console.log(`[${elementId || 'default'}] Calendar size updated`);
         }
     }
 };
 
-// Optimized SignalR Real-time Update Functions
-window.addEventToCalendar = function(eventData) {
+// Real-time Update Functions - with element ID support
+window.addEventToCalendar = function(eventData, elementId = null) {
     const interop = window.fullCalendarInterop;
-    if (!interop.calendar) return;
+    const calendar = elementId ? interop.calendars[elementId] : interop.getCalendar();
+    if (!calendar) return;
     
     const calendarEvent = {
         id: eventData.id.toString(),
@@ -210,15 +311,16 @@ window.addEventToCalendar = function(eventData) {
         }
     };
     
-    interop.calendar.addEvent(calendarEvent);
-    console.log('Event added:', eventData.id);
+    calendar.addEvent(calendarEvent);
+    console.log(`Event added to calendar '${elementId || 'default'}':`, eventData.id);
 };
 
-window.updateEventInCalendar = function(eventData) {
+window.updateEventInCalendar = function(eventData, elementId = null) {
     const interop = window.fullCalendarInterop;
-    if (!interop.calendar) return;
+    const calendar = elementId ? interop.calendars[elementId] : interop.getCalendar();
+    if (!calendar) return;
     
-    const event = interop.calendar.getEventById(eventData.id.toString());
+    const event = calendar.getEventById(eventData.id.toString());
     if (event) {
         event.setProp('title', eventData.title);
         event.setStart(eventData.startDate);
@@ -230,20 +332,21 @@ window.updateEventInCalendar = function(eventData) {
         event.setExtendedProp('location', eventData.location);
         event.setExtendedProp('eventType', eventData.eventType);
         event.setExtendedProp('isPublic', eventData.isPublic);
-        console.log('Event updated:', eventData.id);
+        console.log(`Event updated in calendar '${elementId || 'default'}':`, eventData.id);
     } else {
         console.warn('Event not found, adding instead:', eventData.id);
-        window.addEventToCalendar(eventData);
+        window.addEventToCalendar(eventData, elementId);
     }
 };
 
-window.removeEventFromCalendar = function(eventId) {
+window.removeEventFromCalendar = function(eventId, elementId = null) {
     const interop = window.fullCalendarInterop;
-    if (!interop.calendar) return;
+    const calendar = elementId ? interop.calendars[elementId] : interop.getCalendar();
+    if (!calendar) return;
     
-    const event = interop.calendar.getEventById(eventId.toString());
+    const event = calendar.getEventById(eventId.toString());
     if (event) {
         event.remove();
-        console.log('Event removed:', eventId);
+        console.log(`Event removed from calendar '${elementId || 'default'}':`, eventId);
     }
 };

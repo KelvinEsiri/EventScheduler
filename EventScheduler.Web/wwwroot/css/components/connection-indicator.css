@@ -1,0 +1,34 @@
+/* ============================================
+   🔗 Connection Indicator Component Styles
+   Used in CalendarView.razor and PublicEvents.razor
+   ============================================ */
+
+.connection-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    cursor: help;
+}
+
+.connection-indicator.connected {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.connection-indicator.connected i {
+    animation: pulse-indicator 2s ease-in-out infinite;
+}
+
+.connection-indicator.disconnected {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+@keyframes pulse-indicator {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}

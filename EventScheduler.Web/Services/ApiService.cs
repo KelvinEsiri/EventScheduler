@@ -132,11 +132,19 @@ public class ApiService
         try
         {
             EnsureToken(); // Inject token into request
-            var response = await _httpClient.GetAsync("/api/events");
+            
+            // Add timeout to prevent hanging requests
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var response = await _httpClient.GetAsync("/api/events", cts.Token);
             CheckUnauthorized(response); // Check for 401
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<List<EventResponse>>() ?? new List<EventResponse>();
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request to get events was canceled or timed out");
+            return new List<EventResponse>(); // Return empty list instead of throwing
         }
         catch (UnauthorizedAccessException)
         {
@@ -211,7 +219,9 @@ public class ApiService
         try
         {
             EnsureToken();
-            var response = await _httpClient.PostAsJsonAsync("/api/events", request);
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.PostAsJsonAsync("/api/events", request, cts.Token);
             CheckUnauthorized(response);
             
             if (!response.IsSuccessStatusCode)
@@ -241,6 +251,11 @@ public class ApiService
             
             return await response.Content.ReadFromJsonAsync<EventResponse>();
         }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request to create event was canceled or timed out");
+            throw new InvalidOperationException("The request timed out. Please try again.");
+        }
         catch (UnauthorizedAccessException)
         {
             throw;
@@ -262,7 +277,9 @@ public class ApiService
         try
         {
             EnsureToken();
-            var response = await _httpClient.PutAsJsonAsync($"/api/events/{id}", request);
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.PutAsJsonAsync($"/api/events/{id}", request, cts.Token);
             CheckUnauthorized(response);
             
             if (!response.IsSuccessStatusCode)
@@ -292,6 +309,11 @@ public class ApiService
             
             return await response.Content.ReadFromJsonAsync<EventResponse>();
         }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request to update event was canceled or timed out");
+            throw new InvalidOperationException("The request timed out. Please try again.");
+        }
         catch (UnauthorizedAccessException)
         {
             throw;
@@ -313,9 +335,16 @@ public class ApiService
         try
         {
             EnsureToken();
-            var response = await _httpClient.DeleteAsync($"/api/events/{id}");
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var response = await _httpClient.DeleteAsync($"/api/events/{id}", cts.Token);
             CheckUnauthorized(response);
             response.EnsureSuccessStatusCode();
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request to delete event was canceled or timed out");
+            throw new InvalidOperationException("The request timed out. Please try again.");
         }
         catch (UnauthorizedAccessException)
         {

@@ -152,25 +152,16 @@ Log.Information("✅ SignalR hub endpoint configured at: /hubs/events");
 app.MapGet("/", () => "EventScheduler API is running!");
 
 // Database initialization
-// Note: Using EnsureCreated() for development. For production, use db.Database.Migrate() instead.
+// Using Migrate() to apply pending migrations
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<EventSchedulerDbContext>();
         
-        if (app.Environment.IsDevelopment())
-        {
-            Log.Information("Development: Ensuring database is created...");
-            db.Database.EnsureCreated();
-            Log.Information("Database is ready!");
-        }
-        else
-        {
-            Log.Information("Production: Applying database migrations...");
-            db.Database.Migrate();
-            Log.Information("Database migrations applied successfully!");
-        }
+        Log.Information("Applying database migrations...");
+        db.Database.Migrate();
+        Log.Information("Database migrations applied successfully!");
         
         var userCount = db.Users.Count();
         var eventCount = db.Events.Count();

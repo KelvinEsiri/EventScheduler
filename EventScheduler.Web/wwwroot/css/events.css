@@ -3,66 +3,122 @@
    Event cards, filters, and list views
    ============================================ */
 
+/* Root Variables - Match Calendar View */
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --primary-color: #667eea;
+    --primary-dark: #5568d3;
+    --secondary-color: #764ba2;
+    --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Events Container */
 .events-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    background: var(--bg-gradient);
     display: flex;
     flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
 }
 
-/* Events Header */
-.events-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* ---------- Header - EXACT MATCH to Calendar View ---------- */
+.calendar-header {
+    background: var(--primary-gradient);
     color: #fff;
-    padding: 1.5rem 0;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    padding: 0.625rem 0;
     position: sticky;
     top: 0;
     z-index: 100;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    backdrop-filter: blur(8px);
 }
 
+.calendar-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='grid' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='rgba(255,255,255,0.05)' stroke-width='1'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid)'/%3E%3C/svg%3E");
+    opacity: 0.4;
+}
+
+/* Legacy support */
+.events-header {
+    background: var(--primary-gradient);
+    color: #fff;
+    padding: 0.625rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    backdrop-filter: blur(8px);
+}
+
+.header-content,
+.calendar-header .header-content,
 .events-header .header-content {
-    max-width: 87.5rem;
+    position: relative;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1.5rem;
-    flex-wrap: wrap;
+    gap: 1rem;
 }
 
+.header-text,
+.calendar-header .header-text,
 .events-header .header-text {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     flex: 1;
-    min-width: 0;
 }
 
+.header-icon,
+.calendar-header .header-icon,
 .events-header .header-icon {
-    font-size: 2.5rem;
-    flex-shrink: 0;
+    font-size: 1.5rem;
+    opacity: 0.95;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+    animation: float 3s ease-in-out infinite;
 }
 
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+}
+
+.header-title,
+.calendar-header .header-title,
 .events-header .header-title {
-    font-size: 1.75rem;
+    font-size: 1.125rem;
     font-weight: 700;
     margin: 0;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    letter-spacing: -0.025em;
 }
 
+.header-subtitle,
+.calendar-header .header-subtitle,
 .events-header .header-subtitle {
-    font-size: 0.875rem;
-    opacity: 0.9;
-    margin: 0.25rem 0 0 0;
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
+    opacity: 0.92;
+    line-height: 1.4;
+    max-width: 500px;
+    font-weight: 400;
 }
 
+.header-actions,
+.calendar-header .header-actions,
 .events-header .header-actions {
     display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 /* Event Content Area */
@@ -180,6 +236,7 @@
     margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -346,16 +403,19 @@
 
 /* Responsive Design */
 @media (max-width: 48rem) {
+    .calendar-header .header-content,
     .events-header .header-content {
         flex-direction: column;
         align-items: flex-start;
         gap: 1rem;
     }
 
+    .calendar-header .header-actions,
     .events-header .header-actions {
         width: 100%;
     }
 
+    .calendar-header .header-actions .btn,
     .events-header .header-actions .btn {
         flex: 1;
     }

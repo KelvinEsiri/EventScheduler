@@ -11,8 +11,8 @@
     <!-- FullCalendar CSS -->
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
     
-    <link rel="stylesheet" href="@Assets["app.css"]" />
-    <link rel="stylesheet" href="@Assets["css/calendar-view.css"]" />
+    <!-- Application Styles - Organized and Modular -->
+    <link rel="stylesheet" href="@Assets["css/main.css"]" />
     <link rel="stylesheet" href="@Assets["EventScheduler.Web.styles.css"]" />
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
@@ -21,7 +21,33 @@
 
 <body>
     <Routes />
+    
+    <!-- Blazor SignalR Reconnection Modal - NasosoTax Simple Implementation -->
+    <div id="components-reconnect-modal" class="components-reconnect-hide" data-nosnippet>
+        <div class="show">
+            <h5>Attempting to reconnect to the server...</h5>
+            <div class="loader"></div>
+        </div>
+        <div class="failed">
+            <h5>Reconnection failed</h5>
+            <p>Click <a href="javascript:location.reload()">here</a> to reload the page.</p>
+        </div>
+        <div class="rejected">
+            <h5>Connection rejected</h5>
+            <p>Reload the page to restore functionality.</p>
+        </div>
+    </div>
+    
+    <!-- Reconnection modal styles now in css/components/reconnection-modal.css -->
+    
+    <!-- Bootstrap Bundle JS (includes Popper) -->
+    <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
+    
+    <!-- Load Blazor framework FIRST -->
     <script src="_framework/blazor.web.js"></script>
+    
+    <!-- Load reconnection handler AFTER Blazor (v=8 forces cache refresh) -->
+    <script src="js/reconnection-handler.js?v=8"></script>
     
     <!-- FullCalendar JS -->
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
@@ -38,10 +64,10 @@
             
             getAuthData: function () {
                 return {
-                    username: localStorage.getItem('auth_username') || '',
-                    email: localStorage.getItem('auth_email') || '',
-                    userId: localStorage.getItem('auth_userId') || '',
-                    token: localStorage.getItem('auth_token') || ''
+                    Username: localStorage.getItem('auth_username') || '',
+                    Email: localStorage.getItem('auth_email') || '',
+                    UserId: localStorage.getItem('auth_userId') || '',
+                    Token: localStorage.getItem('auth_token') || ''
                 };
             },
             

@@ -1,0 +1,67 @@
+/* ============================================
+   🎨 Event Scheduler - Master Stylesheet
+   Centralized stylesheet that imports all modular CSS files
+   ============================================ */
+
+/* ===================================
+   Core Application Styles
+   =================================== */
+@import url('./app.css');
+
+/* ===================================
+   Authentication Styles
+   =================================== */
+@import url('./auth.css');
+
+/* ===================================
+   Layout & Navigation
+   =================================== */
+@import url('./layout.css');
+@import url('./layout-enhancements.css');
+
+/* ===================================
+   Calendar Styles
+   =================================== */
+@import url('./calendar.css');
+
+/* ===================================
+   Events Styles
+   =================================== */
+@import url('./events.css');
+
+/* ===================================
+   Component Styles
+   =================================== */
+@import url('./components/toast-notification.css');
+@import url('./components/reconnection-modal.css');
+@import url('./components/connection-indicator.css');
+@import url('./components/loading-spinner.css');
+@import url('./components/blazor-error-ui.css');
+
+/* ===================================
+   Page-Specific Styles
+   =================================== */
+@import url('./pages/home.css');
+@import url('./pages/logout.css');
+@import url('./pages/calendar-view.css');
+@import url('./pages/calendar-list.css');
+@import url('./pages/public-events.css');
+
+/* ============================================
+   📝 Global Utilities & Overrides
+   ============================================ */
+
+/* Ensure consistent box-sizing */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+/* Smooth scrolling for the whole page */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Prevent horizontal scroll on mobile */
+body {
+    overflow-x: hidden;
+}

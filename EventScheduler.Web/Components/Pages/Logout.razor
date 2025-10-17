@@ -1,24 +1,72 @@
 @page "/logout"
+@rendermode InteractiveServer
 @using EventScheduler.Web.Services
 @inject AuthStateProvider AuthStateProvider
 @inject ApiService ApiService
 @inject NavigationManager NavigationManager
+@inject ILogger<Logout> Logger
 
 <PageTitle>Logging out...</PageTitle>
 
-<div class="container mt-5 text-center">
-    <div class="spinner-border" role="status">
-        <span class="visually-hidden">Logging out...</span>
+<!-- Logout page styles now in styles/pages/logout.css -->
+
+<div class="logout-container">
+    <div class="logout-card">
+        <div class="logout-icon">
+            <i class="bi bi-box-arrow-right"></i>
+        </div>
+        <h2>Logging Out</h2>
+        <p>Please wait while we securely log you out...</p>
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Logging out...</span>
+        </div>
     </div>
-    <p class="mt-3">Logging you out...</p>
 </div>
 
 @code {
-    protected override async Task OnInitializedAsync()
+    private bool hasLoggedOut = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await AuthStateProvider.ClearAuthentication();
-        ApiService.ClearToken();
-        await Task.Delay(500); // Brief delay for better UX
-        NavigationManager.NavigateTo("/login");
+        if (firstRender && !hasLoggedOut)
+        {
+            hasLoggedOut = true;
+            
+            try
+            {
+                Logger.LogInformation("Logout: Starting logout process");
+                
+                // Clear authentication state (includes localStorage via JSInterop)
+                await AuthStateProvider.ClearAuthentication();
+                Logger.LogInformation("Logout: Authentication state and localStorage cleared");
+                
+                // Clear API token
+                ApiService.ClearToken();
+                Logger.LogInformation("Logout: API token cleared");
+                
+                // Brief delay for better UX
+                await Task.Delay(500);
+                
+                Logger.LogInformation("Logout: Redirecting to login page");
+                
+                // Force a full page reload to ensure all Blazor circuit state is cleared
+                NavigationManager.NavigateTo("/login", forceLoad: true);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Logout: Error during logout process - {Message}", ex.Message);
+                
+                // Still redirect even if there's an error
+                try
+                {
+                    // Try to clear at least the in-memory state
+                    ApiService.ClearToken();
+                }
+                catch { /* Ignore */ }
+                
+                Logger.LogInformation("Logout: Forcing redirect to login despite errors");
+                NavigationManager.NavigateTo("/login", forceLoad: true);
+            }
+        }
     }
 }

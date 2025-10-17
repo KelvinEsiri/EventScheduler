@@ -10,7 +10,7 @@
 
 <PageTitle>Login - Event Scheduler</PageTitle>
 
-<link rel="stylesheet" href="~/css/auth.css" />
+<link rel="stylesheet" href="/css/auth.css" />
 
 <div class="auth-container">
     <div class="auth-card">
@@ -107,10 +107,13 @@
                 await JSRuntime.InvokeVoidAsync("authHelper.setAuthData", 
                     authUsername, authEmail, authUserId, authToken);
                 
-                Logger.LogInformation("Auth data stored, now navigating");
+                // Wait a tiny bit to ensure localStorage write completes
+                await Task.Delay(100);
                 
-                // Navigate to interactive calendar view
-                await JSRuntime.InvokeVoidAsync("eval", "window.location.href = '/calendar-view';");
+                Logger.LogInformation("Auth data stored, now navigating with full page reload");
+                
+                // Force full page reload to ensure fresh circuit with auth loaded
+                NavigationManager.NavigateTo("/calendar-view", forceLoad: true);
                 
                 Logger.LogInformation("Navigation command sent");
             }

@@ -1,0 +1,23 @@
+/* ============================================
+   📅 Calendar View Page Specific Styles
+   Inline styles extracted from CalendarView.razor
+   ============================================ */
+
+/* Calendar Card */
+.calendar-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+    margin-top: 1.5rem;
+}
+
+.calendar-card-body {
+    padding: 1rem;
+}
+
+#calendar {
+    min-height: 600px;
+    max-width: 100%;
+    overflow-x: auto;
+}
