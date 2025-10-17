@@ -6,9 +6,12 @@ A modern event scheduling application built with .NET 9.0 and Blazor Server, fol
 
 - ✅ **User Authentication** - Secure registration and login with JWT tokens
 - ✅ **Event Management** - Create, edit, delete, and view events
+- ✅ **Public Events** - Share events publicly and allow users to join as participants
 - ✅ **Interactive Calendar** - FullCalendar.js with drag-and-drop, resize, and multiple views
 - ✅ **Calendar Views** - Month, Week, Day, and List views
-- ✅ **Event Status** - Track events (Scheduled, InProgress, Completed, Cancelled)
+- ✅ **Event Status** - Track events (Scheduled, InProgress, Completed, Cancelled, Late)
+- ✅ **History Tab** - Separate view for completed and cancelled events
+- ✅ **Automatic Status Updates** - Events automatically marked as Late when overdue
 - ✅ **Comprehensive Logging** - Serilog with console and file output for troubleshooting
 - ✅ **Responsive UI** - Built with Bootstrap 5 for mobile and desktop
 - ✅ **Clean Architecture** - Modular, maintainable, and testable codebase
@@ -82,10 +85,12 @@ http://localhost:5292
 
 1. **Register** - Create an account at `/register`
 2. **Login** - Sign in at `/login`
-3. **Calendar List** - View events at `/calendar`
+3. **Calendar List** - View events at `/calendar-list` (Active and History tabs)
 4. **Calendar Grid** - View monthly calendar at `/calendar-view`
-5. **Create Event** - Click "New Event" or click a date on the calendar
-6. **Manage Events** - Edit or delete events from either view
+5. **Public Events** - Browse and join public events at `/public-events`
+6. **Create Event** - Click "New Event" or click a date on the calendar
+7. **Manage Events** - Edit or delete events from either view
+8. **Join Events** - Join public events to add them to your calendar
 
 ## API Endpoints
 
@@ -96,12 +101,16 @@ http://localhost:5292
 - `POST /api/auth/password-reset` - Reset password with token
 
 ### Events (Protected - Requires JWT)
-- `GET /api/events` - Get all user events
+- `GET /api/events` - Get all user events (owned and joined)
 - `GET /api/events/{id}` - Get specific event
 - `GET /api/events/date-range?start=...&end=...` - Get events in date range
 - `POST /api/events` - Create new event
 - `PUT /api/events/{id}` - Update event
 - `DELETE /api/events/{id}` - Delete event
+- `GET /api/events/public` - Get all public events (no auth required)
+- `GET /api/events/public/{id}` - Get specific public event (no auth required)
+- `POST /api/events/public/{id}/join` - Join a public event
+- `POST /api/events/public/{id}/leave` - Leave a public event
 
 ## Architecture
 
