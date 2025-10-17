@@ -76,6 +76,12 @@ builder.Services.AddHostedService<AuthCacheCleanupService>();
 builder.Services.AddScoped<ApiService>();
 builder.Services.AddScoped<EventUIHelperService>();
 
+// Register offline support services
+builder.Services.AddScoped<ConnectivityService>();
+builder.Services.AddScoped<LocalStorageService>();
+builder.Services.AddScoped<SyncService>();
+builder.Services.AddScoped<OfflineEventService>();
+
 // Register AuthStateProvider as SCOPED (per Blazor circuit)
 // New instance created for each SignalR circuit
 // RestoreFromCache() runs in constructor to restore auth state

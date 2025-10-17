@@ -1,0 +1,140 @@
+@using EventScheduler.Web.Services
+@inject ConnectivityService ConnectivityService
+@inject SyncService SyncService
+@inject ILogger<OfflineIndicator> Logger
+@implements IAsyncDisposable
+
+<div class="offline-indicator @(IsOnline ? "online" : "offline")">
+    @if (!IsOnline)
+    {
+        <div class="offline-banner">
+            <i class="bi bi-wifi-off"></i>
+            <span>Offline Mode</span>
+            @if (PendingOpsCount > 0)
+            {
+                <span class="badge bg-warning text-dark ms-2">@PendingOpsCount pending</span>
+            }
+        </div>
+    }
+    else if (IsSyncing)
+    {
+        <div class="syncing-banner">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">Syncing...</span>
+            </div>
+            <span>Syncing...</span>
+        </div>
+    }
+    else if (JustSynced)
+    {
+        <div class="synced-banner">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>Synced</span>
+        </div>
+    }
+</div>
+
+@code {
+    private bool IsOnline { get; set; } = true;
+    private bool IsSyncing { get; set; } = false;
+    private bool JustSynced { get; set; } = false;
+    private int PendingOpsCount { get; set; } = 0;
+    private System.Threading.Timer? _syncedTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Initialize connectivity service
+            await ConnectivityService.InitializeAsync();
+            IsOnline = ConnectivityService.IsOnline;
+
+            // Subscribe to connectivity changes
+            ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+
+            // Subscribe to sync events
+            SyncService.SyncStarted += OnSyncStarted;
+            SyncService.SyncCompleted += OnSyncCompleted;
+
+            // Get initial pending operations count
+            await UpdatePendingOpsCount();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize offline indicator");
+        }
+    }
+
+    private void OnConnectivityChanged(object? sender, bool isOnline)
+    {
+        IsOnline = isOnline;
+        
+        InvokeAsync(async () =>
+        {
+            await UpdatePendingOpsCount();
+            StateHasChanged();
+        });
+    }
+
+    private void OnSyncStarted(object? sender, EventArgs e)
+    {
+        IsSyncing = true;
+        JustSynced = false;
+        
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void OnSyncCompleted(object? sender, SyncResult result)
+    {
+        IsSyncing = false;
+        
+        if (result.Success)
+        {
+            JustSynced = true;
+            
+            // Hide "Synced" message after 3 seconds
+            _syncedTimer?.Dispose();
+            _syncedTimer = new System.Threading.Timer(_ =>
+            {
+                JustSynced = false;
+                InvokeAsync(() => StateHasChanged());
+            }, null, TimeSpan.FromSeconds(3), Timeout.InfiniteTimeSpan);
+        }
+        
+        InvokeAsync(async () =>
+        {
+            await UpdatePendingOpsCount();
+            StateHasChanged();
+        });
+    }
+
+    private async Task UpdatePendingOpsCount()
+    {
+        try
+        {
+            PendingOpsCount = await SyncService.GetPendingOperationsCountAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to update pending operations count");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+        SyncService.SyncStarted -= OnSyncStarted;
+        SyncService.SyncCompleted -= OnSyncCompleted;
+        
+        _syncedTimer?.Dispose();
+        
+        try
+        {
+            await ConnectivityService.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error disposing offline indicator");
+        }
+    }
+}
