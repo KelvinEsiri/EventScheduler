@@ -4,17 +4,16 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
-/// <summary>
-/// Service for managing offline mode and synchronizing data when connection is restored
-/// </summary>
-public class OfflineSyncService
+public class OfflineSyncService : IDisposable
 {
     private readonly ApiService _apiService;
     private readonly OfflineStorageService _offlineStorage;
     private readonly NetworkStatusService _networkStatus;
     private readonly ILogger<OfflineSyncService> _logger;
+    private readonly SemaphoreSlim _syncLock = new(1, 1);
     private bool _isSyncing = false;
     private int _pendingCount = 0;
+    private bool _disposed = false;
 
     public event Func<string, Task>? OnSyncStatusChanged;
     public event Func<int, Task>? OnPendingOperationsCountChanged;
@@ -186,26 +185,36 @@ public class OfflineSyncService
 
     public async Task SynchronizePendingOperationsAsync()
     {
-        if (_isSyncing)
+        if (!await _syncLock.WaitAsync(0))
         {
-            _logger.LogInformation("Sync already in progress");
+            _logger.LogInformation("Sync already in progress, skipping duplicate request");
             return;
         }
 
-        if (!_networkStatus.IsOnline)
-        {
-            _logger.LogInformation("Cannot sync - offline");
-            return;
-        }
-
-        _isSyncing = true;
-        
         try
         {
-            await NotifySyncStatus("Synchronizing pending changes...");
+            if (!_networkStatus.IsOnline)
+            {
+                _logger.LogInformation("Cannot sync - offline");
+                return;
+            }
+
+            _isSyncing = true;
+            await InvokeAsync(() => NotifySyncStatus("Synchronizing pending changes..."));
             
             var pendingOperations = await _offlineStorage.GetPendingOperationsAsync();
+            
+            if (pendingOperations.Count == 0)
+            {
+                _logger.LogInformation("No pending operations to sync");
+                await InvokeAsync(() => NotifyPendingOperationsCount());
+                return;
+            }
+            
             _logger.LogInformation("Found {Count} pending operations to sync", pendingOperations.Count);
+
+            var successCount = 0;
+            var failureCount = 0;
 
             foreach (var operation in pendingOperations.OrderBy(o => o.Timestamp))
             {
@@ -213,30 +222,52 @@ public class OfflineSyncService
                 {
                     await ProcessPendingOperationAsync(operation);
                     await _offlineStorage.RemovePendingOperationAsync(operation.Id);
+                    successCount++;
                     _logger.LogInformation("Synced operation {OperationId}: {Type}", operation.Id, operation.Type);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to sync operation {OperationId}: {Type}", operation.Id, operation.Type);
+                    failureCount++;
+                    _logger.LogError(ex, "Failed to sync operation {OperationId}: {Type}. Operation will be retried on next sync.", operation.Id, operation.Type);
                 }
             }
 
-            var freshEvents = await _apiService.GetAllEventsAsync();
-            await _offlineStorage.SaveEventsAsync(freshEvents);
-
-            await NotifySyncStatus("Synchronization complete");
-            await NotifyPendingOperationsCount();
+            if (failureCount == 0)
+            {
+                var freshEvents = await _apiService.GetAllEventsAsync();
+                await _offlineStorage.SaveEventsAsync(freshEvents);
+                await InvokeAsync(() => NotifySyncStatus("Synchronization complete"));
+                _logger.LogInformation("Synchronization completed: {Success} operations synced successfully", successCount);
+            }
+            else
+            {
+                await InvokeAsync(() => NotifySyncStatus($"Sync partial: {successCount} succeeded, {failureCount} failed"));
+                _logger.LogWarning("Synchronization partially completed: {Success} succeeded, {Failures} failed", successCount, failureCount);
+            }
             
-            _logger.LogInformation("Synchronization completed successfully");
+            await InvokeAsync(() => NotifyPendingOperationsCount());
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during synchronization");
-            await NotifySyncStatus("Synchronization failed");
+            await InvokeAsync(() => NotifySyncStatus("Synchronization failed"));
         }
         finally
         {
             _isSyncing = false;
+            _syncLock.Release();
+        }
+    }
+    
+    private async Task InvokeAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to invoke notification handler");
         }
     }
 
@@ -245,42 +276,80 @@ public class OfflineSyncService
         switch (operation.Type.ToLower())
         {
             case "create":
-                if (!string.IsNullOrEmpty(operation.EventData))
+                if (string.IsNullOrEmpty(operation.EventData))
                 {
-                    var createRequest = JsonSerializer.Deserialize<CreateEventRequest>(operation.EventData);
-                    if (createRequest != null)
-                    {
-                        await _apiService.CreateEventAsync(createRequest);
-                    }
+                    _logger.LogWarning("Create operation {OpId} missing event data", operation.Id);
+                    return;
                 }
+                
+                var createRequest = JsonSerializer.Deserialize<CreateEventRequest>(operation.EventData);
+                if (createRequest == null)
+                {
+                    _logger.LogWarning("Create operation {OpId} has invalid event data", operation.Id);
+                    return;
+                }
+                
+                if (string.IsNullOrWhiteSpace(createRequest.Title))
+                {
+                    _logger.LogWarning("Create operation {OpId} missing required Title field", operation.Id);
+                    return;
+                }
+                
+                _logger.LogInformation("Syncing create operation: {Title}", createRequest.Title);
+                await _apiService.CreateEventAsync(createRequest);
                 break;
 
             case "update":
-                if (operation.EventId.HasValue && !string.IsNullOrEmpty(operation.EventData))
+                if (!operation.EventId.HasValue)
                 {
-                    try
+                    _logger.LogWarning("Update operation {OpId} missing EventId", operation.Id);
+                    return;
+                }
+                
+                if (string.IsNullOrEmpty(operation.EventData))
+                {
+                    _logger.LogWarning("Update operation {OpId} missing event data", operation.Id);
+                    return;
+                }
+                
+                try
+                {
+                    var updateRequest = JsonSerializer.Deserialize<UpdateEventRequest>(
+                        operation.EventData, 
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    );
+                    
+                    if (updateRequest == null)
                     {
-                        // Try to deserialize as UpdateEventRequest directly
-                        var updateRequest = JsonSerializer.Deserialize<UpdateEventRequest>(operation.EventData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                        if (updateRequest != null)
-                        {
-                            _logger.LogInformation("Syncing update for event {EventId}: {Title}", operation.EventId.Value, updateRequest.Title);
-                            await _apiService.UpdateEventAsync(operation.EventId.Value, updateRequest);
-                        }
+                        _logger.LogWarning("Update operation {OpId} has invalid event data", operation.Id);
+                        return;
                     }
-                    catch (JsonException ex)
+                    
+                    if (string.IsNullOrWhiteSpace(updateRequest.Title))
                     {
-                        _logger.LogError(ex, "Failed to deserialize update operation data for event {EventId}", operation.EventId.Value);
-                        throw;
+                        _logger.LogWarning("Update operation {OpId} missing required Title field", operation.Id);
+                        return;
                     }
+                    
+                    _logger.LogInformation("Syncing update for event {EventId}: {Title}", operation.EventId.Value, updateRequest.Title);
+                    await _apiService.UpdateEventAsync(operation.EventId.Value, updateRequest);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex, "Failed to deserialize update operation {OpId} for event {EventId}", operation.Id, operation.EventId.Value);
+                    throw;
                 }
                 break;
 
             case "delete":
-                if (operation.EventId.HasValue)
+                if (!operation.EventId.HasValue)
                 {
-                    await _apiService.DeleteEventAsync(operation.EventId.Value);
+                    _logger.LogWarning("Delete operation {OpId} missing EventId", operation.Id);
+                    return;
                 }
+                
+                _logger.LogInformation("Syncing delete for event {EventId}", operation.EventId.Value);
+                await _apiService.DeleteEventAsync(operation.EventId.Value);
                 break;
 
             default:
@@ -312,5 +381,14 @@ public class OfflineSyncService
         var pendingOperations = await _offlineStorage.GetPendingOperationsAsync();
         _pendingCount = pendingOperations.Count;
         return _pendingCount;
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _syncLock?.Dispose();
+            _disposed = true;
+        }
     }
 }

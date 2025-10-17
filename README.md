@@ -204,8 +204,8 @@ dotnet ef database drop --force --startup-project ../EventScheduler.Api
 
 ## Documentation
 
-- [Offline Mode](OFFLINE_MODE.md) - Work offline and sync when reconnected
-- [Offline Functionality Guide](docs/OFFLINE_FUNCTIONALITY.md) - Technical details of offline features
+- [Offline Mode](OFFLINE_MODE.md) - Quick overview of offline functionality
+- [Offline Mode Guide](docs/OFFLINE_MODE_GUIDE.md) - Complete offline functionality documentation
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database Setup](docs/DATABASE_SETUP.md) - Database configuration and migrations
 - [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
