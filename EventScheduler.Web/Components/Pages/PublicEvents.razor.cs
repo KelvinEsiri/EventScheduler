@@ -36,6 +36,7 @@ public partial class PublicEvents : IAsyncDisposable
     private bool isOnline = true;
     
     private HubConnection? hubConnection;
+    private readonly HashSet<int> recentlyProcessedEventIds = new();
 
     public enum ViewMode
     {
@@ -201,8 +202,8 @@ public partial class PublicEvents : IAsyncDisposable
         // Event created handler - add new public events
         hubConnection.On<EventResponse>("EventCreated", async (eventData) => {
             await InvokeAsync(async () => {
-                // Only add if it's a public event
-                if (eventData.IsPublic)
+                // Only add if it's a public event and we haven't already added it
+                if (eventData.IsPublic && !events.Any(e => e.Id == eventData.Id))
                 {
                     Logger.LogInformation("PublicEvents: New public event created - {Title}", eventData.Title);
                     events.Add(eventData);
@@ -217,6 +218,10 @@ public partial class PublicEvents : IAsyncDisposable
                     }
                     
                     StateHasChanged();
+                }
+                else if (eventData.IsPublic && events.Any(e => e.Id == eventData.Id))
+                {
+                    Logger.LogInformation("PublicEvents: Event {EventId} already exists, skipping duplicate", eventData.Id);
                 }
             });
         });

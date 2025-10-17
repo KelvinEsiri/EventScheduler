@@ -35,7 +35,8 @@ public partial class CalendarView : IAsyncDisposable
     private HubConnection? hubConnection;
     private bool isConnected = false;
     private readonly HashSet<int> pendingLocalChanges = new();
-    private DateTime? lastLocalOperationTime = null;
+    private readonly Dictionary<int, int> tempIdToRealIdMap = new();
+    private readonly HashSet<int> optimisticallyAddedEventIds = new();
     
     private bool showModal = false;
     private bool isEditMode = false;
@@ -68,6 +69,7 @@ public partial class CalendarView : IAsyncDisposable
         isOnline = NetworkStatusService.IsOnline;
         NetworkStatusService.OnStatusChanged += HandleNetworkStatusChange;
         OfflineSyncService.OnPendingOperationsCountChanged += HandlePendingCountChanged;
+        OfflineSyncService.OnTempIdMapped += HandleTempIdMapped;
         
         // Get initial pending count
         pendingOperationsCount = await OfflineSyncService.GetPendingOperationsCountAsync();
@@ -127,8 +129,11 @@ public partial class CalendarView : IAsyncDisposable
                 {
                     Logger.LogInformation("CalendarView: Found {Count} pending operations - triggering automatic sync", pendingCount);
                     
-                    // Trigger sync (this will also reload events)
+                    // Trigger sync (this will also reload events and clean up temporary events)
                     await OfflineSyncService.SynchronizePendingOperationsAsync();
+                    
+                    // After sync, reload events to ensure we have the latest server state
+                    await LoadEvents();
                     
                     successMessage = $"Synced {pendingCount} offline changes successfully!";
                 }
@@ -154,6 +159,7 @@ public partial class CalendarView : IAsyncDisposable
             {
                 if (events.Any())
                 {
+                    // Save current events to cache for offline access
                     await OfflineSyncService.LoadEventsAsync(); // This will save to cache
                     Logger.LogInformation("CalendarView: Cached {Count} events for offline use", events.Count);
                 }
@@ -181,6 +187,13 @@ public partial class CalendarView : IAsyncDisposable
     {
         pendingOperationsCount = count;
         Logger.LogInformation("CalendarView: Pending operations count changed to {Count}", count);
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    private async Task HandleTempIdMapped(int tempId, int realId)
+    {
+        Logger.LogInformation("CalendarView: Mapping temporary ID {TempId} to real ID {RealId}", tempId, realId);
+        tempIdToRealIdMap[tempId] = realId;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -233,19 +246,44 @@ public partial class CalendarView : IAsyncDisposable
 
         hubConnection.On<EventResponse>("EventCreated", async (eventData) => {
             await InvokeAsync(async () => {
-                if (IsRecentLocalOperation())
+                // Check if this event was already added optimistically
+                if (optimisticallyAddedEventIds.Remove(eventData.Id))
                 {
                     // This is our own event - already added optimistically, skip to avoid duplicate
-                    Logger.LogInformation("CalendarView: Skipping SignalR EventCreated - own operation (Event {EventId})", eventData.Id);
-                    lastLocalOperationTime = null;
+                    Logger.LogInformation("CalendarView: Skipping SignalR EventCreated - already added optimistically (Event {EventId})", eventData.Id);
                 }
                 else
                 {
-                    // Event created by another user - add it
-                    Logger.LogInformation("CalendarView: Adding event from SignalR (Event {EventId})", eventData.Id);
-                    ShowSuccess($"Event '{eventData.Title}' created!");
-                    events.Add(eventData);
-                    await JSRuntime.InvokeVoidAsync("addEventToCalendar", eventData);
+                    // Check if this is a sync'd offline event (has a temp ID mapping)
+                    var tempId = tempIdToRealIdMap.FirstOrDefault(kvp => kvp.Value == eventData.Id).Key;
+                    if (tempId != 0)
+                    {
+                        // Replace the temporary event with the real one
+                        Logger.LogInformation("CalendarView: Replacing temporary event {TempId} with real event {RealId}", tempId, eventData.Id);
+                        
+                        var tempEvent = events.FirstOrDefault(e => e.Id == tempId);
+                        if (tempEvent != null)
+                        {
+                            events.Remove(tempEvent);
+                            await JSRuntime.InvokeVoidAsync("removeEventFromCalendar", tempId);
+                        }
+                        
+                        events.Add(eventData);
+                        await JSRuntime.InvokeVoidAsync("addEventToCalendar", eventData);
+                        tempIdToRealIdMap.Remove(tempId);
+                    }
+                    else if (!events.Any(e => e.Id == eventData.Id))
+                    {
+                        // Event created by another user or from another tab - add it
+                        Logger.LogInformation("CalendarView: Adding event from SignalR (Event {EventId})", eventData.Id);
+                        ShowSuccess($"Event '{eventData.Title}' created!");
+                        events.Add(eventData);
+                        await JSRuntime.InvokeVoidAsync("addEventToCalendar", eventData);
+                    }
+                    else
+                    {
+                        Logger.LogInformation("CalendarView: Event {EventId} already exists, skipping duplicate", eventData.Id);
+                    }
                 }
                 StateHasChanged();
             });
@@ -279,10 +317,6 @@ public partial class CalendarView : IAsyncDisposable
             });
         });
     }
-
-    private bool IsRecentLocalOperation() => 
-        lastLocalOperationTime.HasValue && 
-        (DateTime.UtcNow - lastLocalOperationTime.Value).TotalSeconds < 2;
 
     private void UpdateEventInList(EventResponse eventData)
     {
@@ -936,8 +970,6 @@ public partial class CalendarView : IAsyncDisposable
             }
             else
             {
-                lastLocalOperationTime = DateTime.UtcNow;
-                
                 if (isOnline)
                 {
                     // Create event and get response
@@ -946,6 +978,9 @@ public partial class CalendarView : IAsyncDisposable
                     // Add immediately (optimistic update with real ID from server)
                     if (createdEvent != null)
                     {
+                        // Track this ID so we don't re-add it when SignalR broadcasts
+                        optimisticallyAddedEventIds.Add(createdEvent.Id);
+                        
                         events.Add(createdEvent);
                         await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
                         Logger.LogInformation("CalendarView: Event {EventId} added optimistically", createdEvent.Id);
@@ -956,8 +991,10 @@ public partial class CalendarView : IAsyncDisposable
                     var createdEvent = await OfflineSyncService.CreateEventOfflineAsync(eventRequest);
                     if (createdEvent != null)
                     {
+                        // Store the temporary event
                         events.Add(createdEvent);
                         await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
+                        Logger.LogInformation("CalendarView: Event {TempId} created offline, will sync when online", createdEvent.Id);
                     }
                     else
                     {

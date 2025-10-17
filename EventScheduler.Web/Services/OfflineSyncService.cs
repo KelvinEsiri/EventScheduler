@@ -17,6 +17,7 @@ public class OfflineSyncService : IDisposable
 
     public event Func<string, Task>? OnSyncStatusChanged;
     public event Func<int, Task>? OnPendingOperationsCountChanged;
+    public event Func<int, int, Task>? OnTempIdMapped; // (tempId, realId) => Task
     
     public bool IsSyncing => _isSyncing;
     public int PendingCount => _pendingCount;
@@ -90,9 +91,10 @@ public class OfflineSyncService : IDisposable
 
     public async Task<EventResponse?> CreateEventOfflineAsync(CreateEventRequest request)
     {
+        var tempId = -DateTime.UtcNow.Ticks.GetHashCode();
         var tempEvent = new EventResponse
         {
-            Id = -DateTime.UtcNow.Ticks.GetHashCode(),
+            Id = tempId,
             Title = request.Title,
             Description = request.Description,
             StartDate = request.StartDate,
@@ -108,6 +110,7 @@ public class OfflineSyncService : IDisposable
         var operation = new PendingOperation
         {
             Type = "create",
+            TempId = tempId,  // Store temporary ID for later mapping
             EventData = JsonSerializer.Serialize(request),
             Timestamp = DateTime.UtcNow
         };
@@ -126,32 +129,92 @@ public class OfflineSyncService : IDisposable
 
     public async Task UpdateEventOfflineAsync(int eventId, UpdateEventRequest request)
     {
-        var operation = new PendingOperation
+        // Check if this is a temporary event (negative ID) that hasn't been synced yet
+        if (eventId < 0)
         {
-            Type = "update",
-            EventId = eventId,
-            EventData = JsonSerializer.Serialize(request),
-            Timestamp = DateTime.UtcNow
-        };
-
-        await _offlineStorage.AddPendingOperationAsync(operation);
-        
-        var events = await _offlineStorage.GetEventsAsync();
-        var existingEvent = events.FirstOrDefault(e => e.Id == eventId);
-        if (existingEvent != null)
-        {
-            existingEvent.Title = request.Title;
-            existingEvent.Description = request.Description;
-            existingEvent.StartDate = request.StartDate;
-            existingEvent.EndDate = request.EndDate;
-            existingEvent.Location = request.Location;
-            existingEvent.IsAllDay = request.IsAllDay;
-            existingEvent.Color = request.Color;
-            existingEvent.EventType = request.EventType;
-            existingEvent.IsPublic = request.IsPublic;
-            existingEvent.Status = request.Status ?? existingEvent.Status;
+            _logger.LogInformation("Updating temporary event {EventId} - will merge with pending create operation", eventId);
             
-            await _offlineStorage.SaveEventsAsync(events);
+            // Find the pending create operation for this temporary event
+            var pendingOps = await _offlineStorage.GetPendingOperationsAsync();
+            var createOp = pendingOps.FirstOrDefault(op => op.Type == "create" && op.TempId == eventId);
+            
+            if (createOp != null)
+            {
+                // Merge the update into the create request
+                var createRequest = JsonSerializer.Deserialize<CreateEventRequest>(createOp.EventData ?? "{}");
+                if (createRequest != null)
+                {
+                    createRequest.Title = request.Title;
+                    createRequest.Description = request.Description;
+                    createRequest.StartDate = request.StartDate;
+                    createRequest.EndDate = request.EndDate;
+                    createRequest.Location = request.Location;
+                    createRequest.IsAllDay = request.IsAllDay;
+                    createRequest.Color = request.Color;
+                    createRequest.EventType = request.EventType;
+                    createRequest.IsPublic = request.IsPublic;
+                    
+                    // Update the operation data
+                    createOp.EventData = JsonSerializer.Serialize(createRequest);
+                    
+                    // Remove old operation and add updated one
+                    await _offlineStorage.RemovePendingOperationAsync(createOp.Id);
+                    await _offlineStorage.AddPendingOperationAsync(createOp);
+                    
+                    _logger.LogInformation("Merged update into pending create operation for temp event {EventId}", eventId);
+                }
+            }
+            
+            // Update in local cache
+            var events = await _offlineStorage.GetEventsAsync();
+            var existingEvent = events.FirstOrDefault(e => e.Id == eventId);
+            if (existingEvent != null)
+            {
+                existingEvent.Title = request.Title;
+                existingEvent.Description = request.Description;
+                existingEvent.StartDate = request.StartDate;
+                existingEvent.EndDate = request.EndDate;
+                existingEvent.Location = request.Location;
+                existingEvent.IsAllDay = request.IsAllDay;
+                existingEvent.Color = request.Color;
+                existingEvent.EventType = request.EventType;
+                existingEvent.IsPublic = request.IsPublic;
+                existingEvent.Status = request.Status ?? existingEvent.Status;
+                
+                await _offlineStorage.SaveEventsAsync(events);
+            }
+        }
+        else
+        {
+            // This is a real event - queue normal update operation
+            var operation = new PendingOperation
+            {
+                Type = "update",
+                EventId = eventId,
+                EventData = JsonSerializer.Serialize(request),
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _offlineStorage.AddPendingOperationAsync(operation);
+            
+            // Update in local cache
+            var events = await _offlineStorage.GetEventsAsync();
+            var existingEvent = events.FirstOrDefault(e => e.Id == eventId);
+            if (existingEvent != null)
+            {
+                existingEvent.Title = request.Title;
+                existingEvent.Description = request.Description;
+                existingEvent.StartDate = request.StartDate;
+                existingEvent.EndDate = request.EndDate;
+                existingEvent.Location = request.Location;
+                existingEvent.IsAllDay = request.IsAllDay;
+                existingEvent.Color = request.Color;
+                existingEvent.EventType = request.EventType;
+                existingEvent.IsPublic = request.IsPublic;
+                existingEvent.Status = request.Status ?? existingEvent.Status;
+                
+                await _offlineStorage.SaveEventsAsync(events);
+            }
         }
 
         await NotifyPendingOperationsCount();
@@ -161,21 +224,50 @@ public class OfflineSyncService : IDisposable
 
     public async Task DeleteEventOfflineAsync(int eventId)
     {
-        var operation = new PendingOperation
+        // Check if this is a temporary event (negative ID) that hasn't been synced yet
+        if (eventId < 0)
         {
-            Type = "delete",
-            EventId = eventId,
-            Timestamp = DateTime.UtcNow
-        };
+            _logger.LogInformation("Deleting temporary event {EventId} - will remove pending create operation", eventId);
+            
+            // Find and remove the pending create operation for this temporary event
+            var pendingOps = await _offlineStorage.GetPendingOperationsAsync();
+            var createOp = pendingOps.FirstOrDefault(op => op.Type == "create" && op.TempId == eventId);
+            
+            if (createOp != null)
+            {
+                await _offlineStorage.RemovePendingOperationAsync(createOp.Id);
+                _logger.LogInformation("Removed pending create operation for temp event {EventId}", eventId);
+            }
+            
+            // Remove from local cache
+            var events = await _offlineStorage.GetEventsAsync();
+            var eventToRemove = events.FirstOrDefault(e => e.Id == eventId);
+            if (eventToRemove != null)
+            {
+                events.Remove(eventToRemove);
+                await _offlineStorage.SaveEventsAsync(events);
+            }
+        }
+        else
+        {
+            // This is a real event - queue normal delete operation
+            var operation = new PendingOperation
+            {
+                Type = "delete",
+                EventId = eventId,
+                Timestamp = DateTime.UtcNow
+            };
 
-        await _offlineStorage.AddPendingOperationAsync(operation);
-        
-        var events = await _offlineStorage.GetEventsAsync();
-        var eventToRemove = events.FirstOrDefault(e => e.Id == eventId);
-        if (eventToRemove != null)
-        {
-            events.Remove(eventToRemove);
-            await _offlineStorage.SaveEventsAsync(events);
+            await _offlineStorage.AddPendingOperationAsync(operation);
+            
+            // Remove from local cache
+            var events = await _offlineStorage.GetEventsAsync();
+            var eventToRemove = events.FirstOrDefault(e => e.Id == eventId);
+            if (eventToRemove != null)
+            {
+                events.Remove(eventToRemove);
+                await _offlineStorage.SaveEventsAsync(events);
+            }
         }
 
         await NotifyPendingOperationsCount();
@@ -224,6 +316,19 @@ public class OfflineSyncService : IDisposable
                     await _offlineStorage.RemovePendingOperationAsync(operation.Id);
                     successCount++;
                     _logger.LogInformation("Synced operation {OperationId}: {Type}", operation.Id, operation.Type);
+                    
+                    // If this was a create operation with a temporary ID, clean up the temp event from cache
+                    if (operation.Type.ToLower() == "create" && operation.TempId.HasValue && operation.TempId.Value < 0)
+                    {
+                        var cachedEvents = await _offlineStorage.GetEventsAsync();
+                        var tempEvent = cachedEvents.FirstOrDefault(e => e.Id == operation.TempId.Value);
+                        if (tempEvent != null)
+                        {
+                            cachedEvents.Remove(tempEvent);
+                            await _offlineStorage.SaveEventsAsync(cachedEvents);
+                            _logger.LogInformation("Removed temporary event {TempId} from cache after sync", operation.TempId.Value);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -296,7 +401,14 @@ public class OfflineSyncService : IDisposable
                 }
                 
                 _logger.LogInformation("Syncing create operation: {Title}", createRequest.Title);
-                await _apiService.CreateEventAsync(createRequest);
+                var createdEvent = await _apiService.CreateEventAsync(createRequest);
+                
+                // If we have a temporary ID in the operation metadata, notify about the mapping
+                if (createdEvent != null && operation.TempId.HasValue && operation.TempId.Value < 0)
+                {
+                    _logger.LogInformation("Mapped temporary ID {TempId} to real ID {RealId}", operation.TempId.Value, createdEvent.Id);
+                    await NotifyTempIdMapped(operation.TempId.Value, createdEvent.Id);
+                }
                 break;
 
             case "update":
@@ -355,6 +467,14 @@ public class OfflineSyncService : IDisposable
             default:
                 _logger.LogWarning("Unknown operation type: {Type}", operation.Type);
                 break;
+        }
+    }
+    
+    private async Task NotifyTempIdMapped(int tempId, int realId)
+    {
+        if (OnTempIdMapped != null)
+        {
+            await OnTempIdMapped.Invoke(tempId, realId);
         }
     }
 

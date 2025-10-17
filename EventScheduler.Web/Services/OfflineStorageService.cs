@@ -112,6 +112,9 @@ public class OfflineStorageService
                         EventId = element.TryGetProperty("EventId", out var eventIdProp) && eventIdProp.ValueKind == JsonValueKind.Number
                             ? eventIdProp.GetInt32()
                             : null,
+                        TempId = element.TryGetProperty("TempId", out var tempIdProp) && tempIdProp.ValueKind == JsonValueKind.Number
+                            ? tempIdProp.GetInt32()
+                            : null,
                         EventData = element.TryGetProperty("Data", out var dataProp) 
                             ? dataProp.GetRawText() 
                             : null,
@@ -169,6 +172,7 @@ public class PendingOperation
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Type { get; set; } = string.Empty;
     public int? EventId { get; set; }
+    public int? TempId { get; set; }  // For mapping temporary offline IDs to real server IDs
     public string? EventData { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }

@@ -95,6 +95,37 @@ This document summarizes the comprehensive review and improvements made to the o
 - ConnectionStatusIndicator properly configured
 - Consistent behavior with CalendarView
 
+### 6. Advanced Synchronization Improvements (2025-10-17) ✅
+
+#### Duplicate Event Prevention
+- **Replaced time-based duplicate detection** with ID-based tracking using `optimisticallyAddedEventIds` HashSet
+- Events added optimistically are tracked by their real server ID
+- SignalR EventCreated broadcasts are intelligently filtered to prevent re-adding already displayed events
+- PublicEvents page also enhanced with duplicate prevention logic
+
+#### Temporary Event ID Mapping
+- **Implemented temporary-to-real ID mapping** system (`tempIdToRealIdMap`)
+- Offline-created events get negative temporary IDs
+- When synced to server, temporary IDs are mapped to real server-generated IDs
+- UI automatically replaces temporary events with real events when mapping occurs
+- No manual refresh needed - seamless transition from offline to online state
+
+#### Smart Temporary Event Operations
+- **Update operations on temporary events** are merged into the pending create operation
+- No separate update operation sent to server for events that haven't been created yet
+- **Delete operations on temporary events** simply remove the pending create operation
+- Avoids unnecessary server calls and keeps sync queue clean and efficient
+
+#### Enhanced Cache Management
+- Temporary events automatically cleaned from cache after successful sync
+- Events reload after sync completes to ensure consistency
+- Proper handling of network status transitions with comprehensive event reloading
+
+#### Multi-Client Synchronization
+- Events from other users/tabs are properly differentiated from local operations
+- Only show "Event created" notifications for events from other sources
+- Prevents notification spam from user's own actions
+
 ## Technical Improvements
 
 ### Concurrency Control
@@ -151,6 +182,102 @@ foreach (var element in doc.RootElement.EnumerateArray())
         _logger.LogWarning(ex, "Failed to parse pending operation, skipping");
         // Continue processing remaining operations
     }
+}
+```
+
+### Temporary Event ID Mapping
+```csharp
+public class OfflineSyncService
+{
+    public event Func<int, int, Task>? OnTempIdMapped; // (tempId, realId)
+    
+    public async Task<EventResponse?> CreateEventOfflineAsync(CreateEventRequest request)
+    {
+        var tempId = -DateTime.UtcNow.Ticks.GetHashCode(); // Negative ID
+        var operation = new PendingOperation
+        {
+            Type = "create",
+            TempId = tempId,  // Store for later mapping
+            EventData = JsonSerializer.Serialize(request),
+        };
+        // ... create and cache temporary event
+    }
+    
+    private async Task ProcessPendingOperationAsync(PendingOperation operation)
+    {
+        if (operation.Type == "create")
+        {
+            var createdEvent = await _apiService.CreateEventAsync(createRequest);
+            
+            // Notify UI about temp-to-real ID mapping
+            if (createdEvent != null && operation.TempId.HasValue)
+            {
+                await NotifyTempIdMapped(operation.TempId.Value, createdEvent.Id);
+            }
+        }
+    }
+}
+```
+
+### Smart Temporary Event Operations
+```csharp
+public async Task UpdateEventOfflineAsync(int eventId, UpdateEventRequest request)
+{
+    if (eventId < 0) // Temporary event
+    {
+        // Find and merge with pending create operation
+        var createOp = pendingOps.FirstOrDefault(op => 
+            op.Type == "create" && op.TempId == eventId);
+        
+        if (createOp != null)
+        {
+            // Update the create request instead of creating separate update operation
+            var createRequest = JsonSerializer.Deserialize<CreateEventRequest>(createOp.EventData);
+            createRequest.Title = request.Title; // Merge updates
+            // ... save merged operation
+        }
+    }
+    else
+    {
+        // Real event - queue normal update operation
+    }
+}
+```
+
+### Duplicate Prevention
+```csharp
+public class CalendarView
+{
+    private readonly HashSet<int> optimisticallyAddedEventIds = new();
+    
+    private async Task SaveEvent()
+    {
+        if (isOnline)
+        {
+            var createdEvent = await ApiService.CreateEventAsync(eventRequest);
+            
+            if (createdEvent != null)
+            {
+                // Track this ID to prevent duplicate from SignalR
+                optimisticallyAddedEventIds.Add(createdEvent.Id);
+                
+                events.Add(createdEvent);
+                await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
+            }
+        }
+    }
+    
+    // SignalR handler
+    hubConnection.On<EventResponse>("EventCreated", async (eventData) => {
+        if (optimisticallyAddedEventIds.Remove(eventData.Id))
+        {
+            // Already added optimistically - skip
+            return;
+        }
+        
+        // This is from another user - add it
+        events.Add(eventData);
+    });
 }
 ```
 
@@ -255,19 +382,22 @@ Potential improvements for consideration:
 **Note:** This document summarizes changes made across multiple commits in this PR. All file modifications are included in the commit history.
 
 ### C# Services
-- `Services/OfflineSyncService.cs` - Enhanced sync logic, validation, concurrency control
-- `Services/OfflineStorageService.cs` - Improved error handling
+- `Services/OfflineSyncService.cs` - Enhanced sync logic, validation, concurrency control, temp ID mapping, smart temp event operations
+- `Services/OfflineStorageService.cs` - Improved error handling, added TempId field to PendingOperation
 - `Services/NetworkStatusService.cs` - Removed verbose comments
 - `Components/Pages/CalendarList.razor.cs` - Enhanced network status handler
+- `Components/Pages/CalendarView.razor.cs` - **Major improvements**: ID-based duplicate prevention, temp ID mapping, enhanced SignalR handlers
+- `Components/Pages/PublicEvents.razor.cs` - Added duplicate prevention for public events
 
 ### JavaScript
-- `wwwroot/js/offline-storage.js` - Cleaned up comments
+- `wwwroot/js/offline-storage.js` - Cleaned up comments, enhanced TempId handling
 - `wwwroot/js/network-status.js` - Simplified logging
 - `wwwroot/js/reconnection-handler.js` - Improved messages
 
 ### Documentation
 - `docs/OFFLINE_MODE_GUIDE.md` - ✨ NEW comprehensive guide
 - `OFFLINE_MODE.md` - Simplified quick reference
+- `OFFLINE_IMPROVEMENTS_SUMMARY.md` - **Updated** with latest synchronization improvements
 - `README.md` - Updated documentation links
 - `docs/archive/README.md` - ✨ NEW archive explanation
 - Archived 23 temporary documents
@@ -283,16 +413,28 @@ Potential improvements for consideration:
 
 The offline-first functionality has been thoroughly reviewed, improved, and documented. The implementation is now:
 
-- **More Reliable** - Race condition prevention, better error handling
+- **More Reliable** - Race condition prevention, better error handling, ID-based duplicate prevention
 - **Better Validated** - Operations checked before sync
+- **Smarter** - Intelligent temp event handling, automatic ID mapping, merged operations
 - **Well Documented** - Comprehensive guide, organized structure
 - **Production Ready** - Clean code, professional logging
 - **Maintainable** - Clear structure, archived historical docs
+- **Truly Offline-First** - Seamless transitions between online/offline states
+- **Multi-Client Safe** - Proper synchronization across multiple tabs and users
 
-The offline mode provides a solid foundation for users to work seamlessly regardless of network connectivity, with automatic synchronization ensuring no data loss.
+### Key Achievements
+
+1. **Zero Duplicates**: Eliminated duplicate events through ID-based tracking instead of time-based heuristics
+2. **Seamless Sync**: Temporary offline events automatically transition to real server events without manual intervention
+3. **Efficient Operations**: Smart merging of operations on temporary events reduces unnecessary API calls
+4. **Consistent State**: Cache and server state remain synchronized through comprehensive reload logic
+5. **Real-Time Updates**: SignalR integration properly handles events from multiple sources
+
+The offline mode provides a solid foundation for users to work seamlessly regardless of network connectivity, with automatic synchronization ensuring no data loss and a consistent experience across all scenarios.
 
 ---
 
 **Date**: 2025-10-17  
-**Review Type**: Comprehensive offline functionality audit  
-**Status**: Complete ✅
+**Review Type**: Comprehensive offline functionality audit and synchronization improvements  
+**Status**: Complete ✅  
+**Latest Update**: Advanced synchronization with temp ID mapping and duplicate prevention

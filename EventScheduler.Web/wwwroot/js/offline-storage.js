@@ -176,10 +176,15 @@ window.offlineStorage = (function() {
                 const transaction = db.transaction(['pendingOperations'], 'readwrite');
                 const store = transaction.objectStore('pendingOperations');
                 
+                // Ensure the operation has all required fields including TempId
+                if (!operation.Id) {
+                    operation.Id = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+                }
+                
                 store.add(operation);
                 
                 transaction.oncomplete = () => {
-                    console.log(`Added pending operation: ${operation.Type} for event ${operation.EventId}`);
+                    console.log(`Added pending operation: ${operation.Type} for event ${operation.EventId || operation.TempId || 'unknown'}`);
                     resolve();
                 };
                 
