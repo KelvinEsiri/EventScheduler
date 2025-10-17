@@ -61,6 +61,7 @@ builder.Services.AddScoped<ApiService>();
 builder.Services.AddScoped<EventUIHelperService>();
 builder.Services.AddScoped<OfflineStorageService>();
 builder.Services.AddScoped<NetworkStatusService>();
+builder.Services.AddScoped<OfflineSyncService>();
 
 builder.Services.AddScoped<AuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => provider.GetRequiredService<AuthStateProvider>());
