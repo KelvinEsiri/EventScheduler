@@ -171,9 +171,9 @@ window.dispatchEvent(new Event('online'));
 ## Known Behaviors
 
 1. **Initial Load**: Page must be loaded while online first (Blazor Server requirement)
-2. **Temporary IDs**: Events created offline have negative IDs until synced
+2. **Temporary IDs**: Events created offline have negative IDs (e.g., -1234567890) to distinguish them from server-assigned positive IDs. When synced, the server returns the real positive ID and the local event is updated. This is handled transparently by the OfflineEventService, so users won't notice any difference in UI behavior.
 3. **SignalR**: Real-time updates only work when online
-4. **Conflict Resolution**: Last-write-wins based on timestamps
+4. **Conflict Resolution**: Last-write-wins based on timestamps (UpdatedAt or CreatedAt)
 5. **Cache**: Cleared on logout for security
 
 ## Troubleshooting
