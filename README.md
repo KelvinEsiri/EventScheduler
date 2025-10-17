@@ -206,6 +206,8 @@ dotnet ef database drop --force --startup-project ../EventScheduler.Api
 
 - [Offline Mode](OFFLINE_MODE.md) - Quick overview of offline functionality
 - [Offline Mode Guide](docs/OFFLINE_MODE_GUIDE.md) - Complete offline functionality documentation
+- [Offline Testing Guide](OFFLINE_TESTING_GUIDE.md) - Step-by-step testing procedures
+- [Synchronization Testing Checklist](SYNC_TESTING_CHECKLIST.md) - Comprehensive sync testing scenarios
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database Setup](docs/DATABASE_SETUP.md) - Database configuration and migrations
 - [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
