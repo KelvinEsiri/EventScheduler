@@ -4,18 +4,24 @@ namespace EventScheduler.Web.Services;
 
 /// <summary>
 /// Service for monitoring network connectivity status
+/// Monitors both browser online status and server reachability
 /// </summary>
 public class NetworkStatusService
 {
     private readonly IJSRuntime _jsRuntime;
     private readonly ILogger<NetworkStatusService> _logger;
+    private readonly IConfiguration _configuration;
     private bool _isOnline = true;
     private readonly List<Func<bool, Task>> _statusChangeHandlers = new();
 
-    public NetworkStatusService(IJSRuntime jsRuntime, ILogger<NetworkStatusService> logger)
+    public NetworkStatusService(
+        IJSRuntime jsRuntime, 
+        ILogger<NetworkStatusService> logger,
+        IConfiguration configuration)
     {
         _jsRuntime = jsRuntime;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public bool IsOnline => _isOnline;
@@ -26,10 +32,14 @@ public class NetworkStatusService
     {
         try
         {
+            var apiBaseUrl = _configuration["ApiSettings:BaseUrl"] ?? "http://localhost:5006";
             var dotNetRef = DotNetObjectReference.Create(this);
-            await _jsRuntime.InvokeVoidAsync("networkStatus.initialize", dotNetRef);
+            
+            await _jsRuntime.InvokeVoidAsync("networkStatus.initialize", dotNetRef, apiBaseUrl);
             _isOnline = await _jsRuntime.InvokeAsync<bool>("networkStatus.isOnline");
-            _logger.LogInformation("Network status service initialized. Online: {IsOnline}", _isOnline);
+            
+            _logger.LogInformation("Network status service initialized. Online: {IsOnline}, API: {ApiUrl}", 
+                _isOnline, apiBaseUrl);
         }
         catch (Exception ex)
         {
@@ -65,4 +75,18 @@ public class NetworkStatusService
             return false;
         }
     }
+    
+    public async Task ForceServerHealthCheckAsync()
+    {
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("networkStatus.checkServerHealth");
+            _logger.LogInformation("Manual server health check triggered");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to trigger server health check");
+        }
+    }
 }
+

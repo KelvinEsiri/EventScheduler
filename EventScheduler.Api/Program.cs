@@ -114,7 +114,8 @@ builder.Services.AddCors(options =>
         policy =>
         {
             policy.WithOrigins(
-                    "http://localhost:5292", 
+                    "http://localhost:5292",
+                    "http://127.0.0.1:5292",  // Added for health checks
                     "https://localhost:7248",
                     "http://localhost:5006",
                     "https://localhost:7249")
@@ -148,8 +149,10 @@ Log.Information("Mapping SignalR hub to /hubs/events...");
 app.MapHub<EventHub>("/hubs/events");
 Log.Information("✅ SignalR hub endpoint configured at: /hubs/events");
 
-// Add a simple health check endpoint
+// Add health check endpoints
 app.MapGet("/", () => "EventScheduler API is running!");
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+Log.Information("✅ Health check endpoint configured at: /health");
 
 // Database initialization
 // Using Migrate() to apply pending migrations

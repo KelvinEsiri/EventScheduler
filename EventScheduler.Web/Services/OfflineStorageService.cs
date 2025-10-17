@@ -15,6 +15,13 @@ public class OfflineStorageService
     private const string DB_NAME = "EventSchedulerOfflineDB";
     private const string EVENTS_STORE = "events";
     private const string PENDING_OPERATIONS_STORE = "pendingOperations";
+    
+    // JSON serialization options for camelCase (JavaScript naming convention)
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
 
     public OfflineStorageService(IJSRuntime jsRuntime, ILogger<OfflineStorageService> logger)
     {
@@ -39,7 +46,7 @@ public class OfflineStorageService
     {
         try
         {
-            await _jsRuntime.InvokeVoidAsync("offlineStorage.saveEvents", JsonSerializer.Serialize(events));
+            await _jsRuntime.InvokeVoidAsync("offlineStorage.saveEvents", JsonSerializer.Serialize(events, JsonOptions));
             _logger.LogInformation("Saved {Count} events to offline storage", events.Count);
         }
         catch (Exception ex)
@@ -58,7 +65,8 @@ public class OfflineStorageService
                 return new List<EventResponse>();
             }
 
-            var events = JsonSerializer.Deserialize<List<EventResponse>>(eventsJson) ?? new List<EventResponse>();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var events = JsonSerializer.Deserialize<List<EventResponse>>(eventsJson, options) ?? new List<EventResponse>();
             _logger.LogInformation("Retrieved {Count} events from offline storage", events.Count);
             return events;
         }
@@ -73,7 +81,7 @@ public class OfflineStorageService
     {
         try
         {
-            await _jsRuntime.InvokeVoidAsync("offlineStorage.addPendingOperation", JsonSerializer.Serialize(operation));
+            await _jsRuntime.InvokeVoidAsync("offlineStorage.addPendingOperation", JsonSerializer.Serialize(operation, JsonOptions));
             _logger.LogInformation("Added pending operation: {Type} for event {EventId}", operation.Type, operation.EventId);
         }
         catch (Exception ex)
@@ -92,7 +100,32 @@ public class OfflineStorageService
                 return new List<PendingOperation>();
             }
 
-            var operations = JsonSerializer.Deserialize<List<PendingOperation>>(operationsJson) ?? new List<PendingOperation>();
+            // Parse JSON manually to handle numeric Id from JavaScript
+            using var doc = JsonDocument.Parse(operationsJson);
+            var operations = new List<PendingOperation>();
+            
+            foreach (var element in doc.RootElement.EnumerateArray())
+            {
+                var operation = new PendingOperation
+                {
+                    // Handle both numeric and string Id from JavaScript
+                    Id = element.GetProperty("Id").ValueKind == JsonValueKind.Number 
+                        ? element.GetProperty("Id").GetInt64().ToString() 
+                        : element.GetProperty("Id").GetString() ?? Guid.NewGuid().ToString(),
+                    Type = element.GetProperty("Type").GetString() ?? "unknown",
+                    EventId = element.TryGetProperty("EventId", out var eventIdProp) && eventIdProp.ValueKind == JsonValueKind.Number
+                        ? eventIdProp.GetInt32()
+                        : null,
+                    EventData = element.TryGetProperty("Data", out var dataProp) 
+                        ? dataProp.GetRawText() 
+                        : null,
+                    Timestamp = element.TryGetProperty("Timestamp", out var timestampProp)
+                        ? DateTime.Parse(timestampProp.GetString() ?? DateTime.UtcNow.ToString())
+                        : DateTime.UtcNow
+                };
+                operations.Add(operation);
+            }
+            
             _logger.LogInformation("Retrieved {Count} pending operations", operations.Count);
             return operations;
         }

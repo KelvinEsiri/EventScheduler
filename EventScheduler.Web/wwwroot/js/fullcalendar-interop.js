@@ -1,4 +1,37 @@
 // FullCalendar Interop for Blazor - Multi-Instance Support
+
+// Global error handler for Blazor interop errors
+window.addEventListener('error', function(event) {
+    if (event.error && event.error.message) {
+        const msg = event.error.message;
+        if (msg.includes('No interop methods are registered') || 
+            msg.includes('Cannot send data if the connection is not in') ||
+            msg.includes('Connected State') ||
+            msg.includes('circuit') || 
+            msg.includes('disposed')) {
+            console.warn('[FullCalendar] Blazor interop error caught (likely during reconnection):', msg);
+            event.preventDefault(); // Prevent the error from showing in console
+            return true;
+        }
+    }
+});
+
+// Also catch unhandled promise rejections
+window.addEventListener('unhandledrejection', function(event) {
+    if (event.reason && event.reason.message) {
+        const msg = event.reason.message;
+        if (msg.includes('No interop methods are registered') || 
+            msg.includes('Cannot send data if the connection is not in') ||
+            msg.includes('Connected State') ||
+            msg.includes('circuit') || 
+            msg.includes('disposed')) {
+            console.warn('[FullCalendar] Blazor promise rejection caught (likely during reconnection):', msg);
+            event.preventDefault(); // Prevent the unhandled rejection warning
+            return true;
+        }
+    }
+});
+
 window.fullCalendarInterop = {
     calendars: {},  // Multiple calendars by elementId
     dotNetHelpers: {},  // Store dotNetHelper per calendar
@@ -75,15 +108,19 @@ window.fullCalendarInterop = {
             // Event handlers with elementId context
             eventClick: (info) => {
                 info.jsEvent.preventDefault();
+                
+                // Allow event clicks in offline mode - the C# side will handle showing cached data
                 const eventId = parseInt(info.event.id);
                 this.invokeDotNet(elementId, 'OnEventClick', eventId);
             },
             
             select: (info) => {
+                // Date selection should still work offline (for creating events)
                 this.invokeDotNet(elementId, 'OnDateSelect', info.startStr, info.endStr, info.allDay);
             },
             
             dateClick: (info) => {
+                // Date clicking should still work offline (for creating events)
                 this.invokeDotNet(elementId, 'OnDateClick', info.dateStr);
             },
             
@@ -97,6 +134,54 @@ window.fullCalendarInterop = {
                     return;
                 }
                 
+                // Check if offline
+                const isOffline = window.networkStatus && !window.networkStatus.isOnline();
+                
+                if (isOffline) {
+                    console.log('[calendar] Event dropped while offline - queuing operation');
+                    
+                    // Save to IndexedDB as pending operation with full event data
+                    if (window.offlineStorage) {
+                        // Get full event data from FullCalendar
+                        const eventData = {
+                            Title: info.event.title,
+                            Description: info.event.extendedProps.description || null,
+                            StartDate: info.event.startStr,
+                            EndDate: info.event.endStr,
+                            Location: info.event.extendedProps.location || null,
+                            IsAllDay: info.event.allDay,
+                            Color: info.event.backgroundColor || null,
+                            CategoryId: null,
+                            Status: info.event.extendedProps.status || 'Scheduled',
+                            EventType: info.event.extendedProps.eventType || 'Other',
+                            IsPublic: info.event.extendedProps.isPublic || false,
+                            Invitations: null
+                        };
+                        
+                        const operation = {
+                            Id: Date.now(),
+                            Type: 'Update',
+                            EventId: eventId,
+                            Data: JSON.stringify(eventData), // Store as JSON string
+                            Timestamp: new Date().toISOString()
+                        };
+                        
+                        window.offlineStorage.addPendingOperation(JSON.stringify(operation))
+                            .then(() => {
+                                console.log(`✓ Queued event drop for sync (Event ${eventId})`);
+                                if (window.showToast) {
+                                    window.showToast('Changes saved offline', 'Will sync when connection is restored', 'info');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Failed to queue operation:', err);
+                                this.revertEvent(elementId, eventId);
+                            });
+                    }
+                    return;
+                }
+                
+                // Online - proceed with normal save
                 info.el.style.opacity = '0.6';
                 info.el.classList.add('event-saving');
                 
@@ -125,6 +210,54 @@ window.fullCalendarInterop = {
                     return;
                 }
                 
+                // Check if offline
+                const isOffline = window.networkStatus && !window.networkStatus.isOnline();
+                
+                if (isOffline) {
+                    console.log('[calendar] Event resized while offline - queuing operation');
+                    
+                    // Save to IndexedDB as pending operation with full event data
+                    if (window.offlineStorage) {
+                        // Get full event data from FullCalendar
+                        const eventData = {
+                            Title: info.event.title,
+                            Description: info.event.extendedProps.description || null,
+                            StartDate: info.event.startStr,
+                            EndDate: info.event.endStr,
+                            Location: info.event.extendedProps.location || null,
+                            IsAllDay: info.event.allDay,
+                            Color: info.event.backgroundColor || null,
+                            CategoryId: null,
+                            Status: info.event.extendedProps.status || 'Scheduled',
+                            EventType: info.event.extendedProps.eventType || 'Other',
+                            IsPublic: info.event.extendedProps.isPublic || false,
+                            Invitations: null
+                        };
+                        
+                        const operation = {
+                            Id: Date.now(),
+                            Type: 'Update',
+                            EventId: eventId,
+                            Data: JSON.stringify(eventData), // Store as JSON string
+                            Timestamp: new Date().toISOString()
+                        };
+                        
+                        window.offlineStorage.addPendingOperation(JSON.stringify(operation))
+                            .then(() => {
+                                console.log(`✓ Queued event resize for sync (Event ${eventId})`);
+                                if (window.showToast) {
+                                    window.showToast('Changes saved offline', 'Will sync when connection is restored', 'info');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Failed to queue operation:', err);
+                                this.revertEvent(elementId, eventId);
+                            });
+                    }
+                    return;
+                }
+                
+                // Online - proceed with normal save
                 info.el.style.opacity = '0.6';
                 info.el.classList.add('event-saving');
                 
@@ -164,18 +297,54 @@ window.fullCalendarInterop = {
         return true;
     },
 
-    // Helper method to invoke .NET methods
+    // Helper method to invoke .NET methods with connection check
     invokeDotNet: function(elementId, methodName, ...args) {
         const helper = this.dotNetHelpers[elementId];
         if (!helper) {
             console.error(`[${elementId}] DotNet helper not available`);
-            return Promise.reject('DotNet helper not available');
+            return Promise.resolve(null); // Return null instead of rejecting
         }
-        return helper.invokeMethodAsync(methodName, ...args)
-            .catch(err => {
-                console.error(`[${elementId}] Error calling ${methodName}:`, err);
-                throw err;
-            });
+        
+        // Check if Blazor is connected before attempting to invoke
+        if (window.Blazor && window.Blazor._internal && 
+            window.Blazor._internal.navigationManager && 
+            window.Blazor._internal.navigationManager._isInteractive === false) {
+            console.warn(`[${elementId}] Blazor not connected - skipping ${methodName} call (offline mode)`);
+            return Promise.resolve(null);
+        }
+        
+        // Check network status if available
+        if (window.networkStatus && !window.networkStatus.isOnline()) {
+            console.warn(`[${elementId}] Network offline - skipping ${methodName} call`);
+            return Promise.resolve(null);
+        }
+        
+        // Wrap in try-catch to handle synchronous errors
+        try {
+            return helper.invokeMethodAsync(methodName, ...args)
+                .then(result => result)
+                .catch(err => {
+                    // Handle various Blazor disconnection errors
+                    const errorMessage = err.message || err.toString();
+                    
+                    if (errorMessage.includes('Connected State') || 
+                        errorMessage.includes('No interop methods are registered') ||
+                        errorMessage.includes('circuit') ||
+                        errorMessage.includes('disposed') ||
+                        errorMessage.includes('Cannot send data')) {
+                        console.warn(`[${elementId}] Cannot call ${methodName} - Blazor circuit not ready or disposed:`, errorMessage);
+                        return null; // Return null instead of throwing
+                    }
+                    
+                    console.error(`[${elementId}] Error calling ${methodName}:`, err);
+                    // Don't re-throw, return null to prevent unhandled rejection
+                    return null;
+                });
+        } catch (err) {
+            // Catch synchronous errors
+            console.warn(`[${elementId}] Synchronous error calling ${methodName}:`, err.message);
+            return Promise.resolve(null);
+        }
     },
 
     cacheEventState: function(eventId, oldEvent) {

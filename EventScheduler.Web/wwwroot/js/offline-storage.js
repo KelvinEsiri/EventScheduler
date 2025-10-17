@@ -58,26 +58,86 @@ window.offlineStorage = (function() {
             
             try {
                 const events = JSON.parse(eventsJson);
+                console.log(`[OfflineStorage] Attempting to save ${events.length} events`);
+                
+                // Log first event to check structure
+                if (events.length > 0) {
+                    console.log('[OfflineStorage] Sample event structure:', {
+                        hasLowercaseId: 'id' in events[0],
+                        hasUppercaseId: 'Id' in events[0],
+                        idValue: events[0].id || events[0].Id,
+                        keys: Object.keys(events[0])
+                    });
+                }
+                
+                // Normalize all events BEFORE starting transaction
+                const normalizedEvents = events.map((event, index) => {
+                    // Use JSON parse/stringify for deep clone (handles all properties)
+                    const normalized = JSON.parse(JSON.stringify(event));
+                    
+                    // Handle C# Id -> id conversion
+                    if (!normalized.id && normalized.Id) {
+                        normalized.id = normalized.Id;
+                    }
+                    
+                    // Ensure id exists and is valid
+                    if (!normalized.id || normalized.id === null || normalized.id === undefined) {
+                        console.error('[OfflineStorage] Event missing valid id after normalization:', {
+                            original: event,
+                            normalized: normalized
+                        });
+                        return null;
+                    }
+                    
+                    // Ensure id is a number
+                    normalized.id = Number(normalized.id);
+                    
+                    // Remove uppercase Id to avoid confusion
+                    delete normalized.Id;
+                    
+                    console.log(`[OfflineStorage] Event ${index + 1} normalized: id=${normalized.id}, title="${normalized.title}"`);
+                    
+                    return normalized;
+                }).filter(e => e !== null); // Remove nulls
+                
+                console.log(`[OfflineStorage] Normalized ${normalizedEvents.length} events for storage`);
+                
                 const transaction = db.transaction(['events'], 'readwrite');
                 const store = transaction.objectStore('events');
                 
                 store.clear();
                 
-                events.forEach(event => {
-                    store.put(event);
+                let savedCount = 0;
+                let skippedCount = 0;
+                
+                normalizedEvents.forEach((event, index) => {
+                    try {
+                        const request = store.put(event);
+                        request.onsuccess = () => {
+                            savedCount++;
+                            console.log(`[OfflineStorage] ✓ Saved event ${event.id}`);
+                        };
+                        request.onerror = (err) => {
+                            console.error(`[OfflineStorage] ✗ Failed to save event ${event.id}:`, err);
+                            skippedCount++;
+                        };
+                    } catch (err) {
+                        console.error(`[OfflineStorage] ✗ Exception saving event ${event.id}:`, err);
+                        skippedCount++;
+                    }
                 });
                 
                 transaction.oncomplete = () => {
-                    console.log(`Saved ${events.length} events to offline storage`);
+                    console.log(`[OfflineStorage] Successfully saved ${normalizedEvents.length} events`);
                     resolve();
                 };
                 
                 transaction.onerror = () => {
-                    console.error('Failed to save events:', transaction.error);
+                    console.error('[OfflineStorage] Transaction error:', transaction.error);
                     reject(transaction.error);
                 };
             } catch (error) {
-                console.error('Error parsing events:', error);
+                console.error('[OfflineStorage] Error in saveEvents:', error);
                 reject(error);
             }
         });
@@ -194,6 +254,17 @@ window.offlineStorage = (function() {
             
             try {
                 const event = JSON.parse(eventJson);
+                
+                // Ensure the event has an 'id' field (handle C# Id -> id conversion)
+                if (!event.id && event.Id) {
+                    event.id = event.Id;
+                }
+                
+                if (!event.id) {
+                    reject('Event missing id field');
+                    return;
+                }
+                
                 event.lastModified = Date.now();
                 
                 const transaction = db.transaction(['events'], 'readwrite');

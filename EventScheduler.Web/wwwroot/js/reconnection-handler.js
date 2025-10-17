@@ -58,9 +58,20 @@ setTimeout(() => {
             try {
                 const response = await fetch('/');
                 if (response.ok) {
-                    console.log('🟢 [SignalR] Server is back! Reloading page...');
+                    console.log('🟢 [SignalR] Server is back! Triggering sync instead of reload...');
                     clearInterval(checkServerInterval);
-                    location.reload();
+                    
+                    // Instead of reloading, trigger sync of offline changes
+                    if (window.offlineStorage && window.offlineStorage.getPendingOperationsCount) {
+                        const pendingCount = await window.offlineStorage.getPendingOperationsCount();
+                        if (pendingCount > 0) {
+                            console.log(`📤 [SignalR] Found ${pendingCount} pending operations - will sync after reconnection`);
+                        }
+                    }
+                    
+                    // Let Blazor reconnect naturally without reloading
+                    // The network status service will handle notifying the app
+                    modal.className = 'components-reconnect-hide';
                 }
             } catch (e) {
                 console.log('❌ [SignalR] Server still down, will retry...');

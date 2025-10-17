@@ -114,6 +114,66 @@ public partial class CalendarView : IAsyncDisposable
     {
         isOnline = online;
         Logger.LogInformation("CalendarView: Network status changed to {Status}", online ? "Online" : "Offline");
+        
+        if (online)
+        {
+            // Back online - trigger sync of pending operations
+            Logger.LogInformation("CalendarView: Back online - checking for pending operations to sync");
+            
+            try
+            {
+                var pendingCount = await OfflineSyncService.GetPendingOperationsCountAsync();
+                if (pendingCount > 0)
+                {
+                    Logger.LogInformation("CalendarView: Found {Count} pending operations - triggering automatic sync", pendingCount);
+                    
+                    // Trigger sync (this will also reload events)
+                    await OfflineSyncService.SynchronizePendingOperationsAsync();
+                    
+                    successMessage = $"Synced {pendingCount} offline changes successfully!";
+                }
+                else
+                {
+                    Logger.LogInformation("CalendarView: No pending operations to sync");
+                    // Still reload to ensure we have latest server data
+                    await LoadEvents();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "CalendarView: Error during auto-sync");
+                errorMessage = "Error syncing offline changes";
+            }
+        }
+        else
+        {
+            // Going offline - ensure current events are cached
+            Logger.LogInformation("CalendarView: Going offline - caching current events");
+            
+            try
+            {
+                if (events.Any())
+                {
+                    await OfflineSyncService.LoadEventsAsync(); // This will save to cache
+                    Logger.LogInformation("CalendarView: Cached {Count} events for offline use", events.Count);
+                }
+                
+                // Show offline indicator
+                successMessage = "You are now offline - changes will sync when connection is restored";
+                _ = Task.Delay(3000).ContinueWith(_ => {
+                    if (!isOnline) // Clear message only if still offline
+                    {
+                        successMessage = null;
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "CalendarView: Error caching events for offline mode");
+            }
+        }
+        
         await InvokeAsync(StateHasChanged);
     }
     
@@ -175,15 +235,18 @@ public partial class CalendarView : IAsyncDisposable
             await InvokeAsync(async () => {
                 if (IsRecentLocalOperation())
                 {
+                    // This is our own event - already added optimistically, skip to avoid duplicate
+                    Logger.LogInformation("CalendarView: Skipping SignalR EventCreated - own operation (Event {EventId})", eventData.Id);
                     lastLocalOperationTime = null;
                 }
                 else
                 {
+                    // Event created by another user - add it
+                    Logger.LogInformation("CalendarView: Adding event from SignalR (Event {EventId})", eventData.Id);
                     ShowSuccess($"Event '{eventData.Title}' created!");
+                    events.Add(eventData);
+                    await JSRuntime.InvokeVoidAsync("addEventToCalendar", eventData);
                 }
-                
-                events.Add(eventData);
-                await JSRuntime.InvokeVoidAsync("addEventToCalendar", eventData);
                 StateHasChanged();
             });
         });
@@ -428,11 +491,30 @@ public partial class CalendarView : IAsyncDisposable
             {
                 try
                 {
-                    await JSRuntime.InvokeVoidAsync("fullCalendarInterop.updateEvents", ConvertToFullCalendarFormat());
+                    // Check if calendar still exists
+                    var calendarExists = await JSRuntime.InvokeAsync<bool>("eval", 
+                        "window.fullCalendarInterop && window.fullCalendarInterop.calendars && window.fullCalendarInterop.calendars['calendar'] !== undefined");
+                    
+                    if (calendarExists)
+                    {
+                        await JSRuntime.InvokeVoidAsync("fullCalendarInterop.updateEvents", ConvertToFullCalendarFormat());
+                    }
+                    else
+                    {
+                        Logger.LogWarning("CalendarView: Calendar was destroyed, reinitializing");
+                        calendarInitialized = false;
+                        initializationAttempted = false;
+                    }
                 }
                 catch (JSDisconnectedException)
                 {
                     Logger.LogWarning("CalendarView: Circuit disconnected while updating calendar");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "CalendarView: Error updating calendar, will reinitialize");
+                    calendarInitialized = false;
+                    initializationAttempted = false;
                 }
             }
         }
@@ -858,7 +940,16 @@ public partial class CalendarView : IAsyncDisposable
                 
                 if (isOnline)
                 {
-                    await ApiService.CreateEventAsync(eventRequest);
+                    // Create event and get response
+                    var createdEvent = await ApiService.CreateEventAsync(eventRequest);
+                    
+                    // Add immediately (optimistic update with real ID from server)
+                    if (createdEvent != null)
+                    {
+                        events.Add(createdEvent);
+                        await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
+                        Logger.LogInformation("CalendarView: Event {EventId} added optimistically", createdEvent.Id);
+                    }
                 }
                 else
                 {

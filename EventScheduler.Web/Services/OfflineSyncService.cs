@@ -258,10 +258,20 @@ public class OfflineSyncService
             case "update":
                 if (operation.EventId.HasValue && !string.IsNullOrEmpty(operation.EventData))
                 {
-                    var updateRequest = JsonSerializer.Deserialize<UpdateEventRequest>(operation.EventData);
-                    if (updateRequest != null)
+                    try
                     {
-                        await _apiService.UpdateEventAsync(operation.EventId.Value, updateRequest);
+                        // Try to deserialize as UpdateEventRequest directly
+                        var updateRequest = JsonSerializer.Deserialize<UpdateEventRequest>(operation.EventData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (updateRequest != null)
+                        {
+                            _logger.LogInformation("Syncing update for event {EventId}: {Title}", operation.EventId.Value, updateRequest.Title);
+                            await _apiService.UpdateEventAsync(operation.EventId.Value, updateRequest);
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "Failed to deserialize update operation data for event {EventId}", operation.EventId.Value);
+                        throw;
                     }
                 }
                 break;
