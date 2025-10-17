@@ -209,6 +209,7 @@ dotnet ef database drop --force --startup-project ../EventScheduler.Api
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database Setup](docs/DATABASE_SETUP.md) - Database configuration and migrations
 - [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
+- [Calendar Troubleshooting](docs/CALENDAR_TROUBLESHOOTING.md) - Debugging calendar issues
 
 ## Contributing
 
