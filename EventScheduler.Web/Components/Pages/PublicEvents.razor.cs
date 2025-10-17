@@ -17,6 +17,7 @@ public partial class PublicEvents : IAsyncDisposable
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private ILogger<PublicEvents> Logger { get; set; } = default!;
     [Inject] private EventUIHelperService UIHelper { get; set; } = default!;
+    [Inject] private NetworkStatusService NetworkStatusService { get; set; } = default!;
 
     private List<EventResponse> events = new();
     private List<EventResponse> filteredEvents = new();
@@ -30,13 +31,11 @@ public partial class PublicEvents : IAsyncDisposable
     private ViewMode viewMode = ViewMode.Calendar;
     private DotNetObjectReference<PublicEvents>? dotNetHelper;
     private bool calendarInitialized = false;
-    private bool initializationAttempted = false; // Prevents multiple initialization attempts
+    private bool initializationAttempted = false;
     private int currentUserId = 0;
+    private bool isOnline = true;
     
-    // SignalR for real-time updates
     private HubConnection? hubConnection;
-    private bool isConnected = false;
-    private string connectionStatus = "";
 
     public enum ViewMode
     {
@@ -47,6 +46,14 @@ public partial class PublicEvents : IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("PublicEvents: Component initializing");
+        
+        await NetworkStatusService.InitializeAsync();
+        isOnline = NetworkStatusService.IsOnline;
+        NetworkStatusService.OnStatusChanged += async (online) =>
+        {
+            isOnline = online;
+            await InvokeAsync(StateHasChanged);
+        };
         
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
@@ -179,15 +186,11 @@ public partial class PublicEvents : IAsyncDisposable
 
             await hubConnection.StartAsync();
             
-            isConnected = true;
-            connectionStatus = "Connected to real-time updates";
             Logger.LogInformation("PublicEvents SignalR: Connected (Connection ID: {ConnectionId})", hubConnection.ConnectionId);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "PublicEvents SignalR: Connection failed");
-            connectionStatus = "Real-time updates unavailable";
-            isConnected = false;
         }
     }
 
@@ -299,8 +302,6 @@ public partial class PublicEvents : IAsyncDisposable
     private Task OnReconnecting(Exception? exception)
     {
         Logger.LogWarning(exception, "PublicEvents SignalR: ⚠️ Connection lost, attempting to reconnect...");
-        connectionStatus = "Reconnecting to real-time updates...";
-        isConnected = false;
         InvokeAsync(StateHasChanged);
         return Task.CompletedTask;
     }
@@ -308,8 +309,6 @@ public partial class PublicEvents : IAsyncDisposable
     private Task OnReconnected(string? connectionId)
     {
         Logger.LogInformation("PublicEvents SignalR: ✓ Reconnected successfully (Connection ID: {ConnectionId})", connectionId);
-        connectionStatus = "Connected to real-time updates";
-        isConnected = true;
         InvokeAsync(StateHasChanged);
         return Task.CompletedTask;
     }
@@ -317,8 +316,6 @@ public partial class PublicEvents : IAsyncDisposable
     private Task OnClosed(Exception? exception)
     {
         Logger.LogWarning(exception, "PublicEvents SignalR: Connection closed");
-        connectionStatus = "Real-time updates unavailable";
-        isConnected = false;
         InvokeAsync(StateHasChanged);
         return Task.CompletedTask;
     }

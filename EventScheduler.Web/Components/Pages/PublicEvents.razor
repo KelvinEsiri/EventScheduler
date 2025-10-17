@@ -21,12 +21,6 @@
                 </div>
             </div>
             <div class="header-actions">
-                @if (!string.IsNullOrEmpty(connectionStatus))
-                {
-                    <div class="connection-indicator @(isConnected ? "connected" : "disconnected")" title="@connectionStatus">
-                        <i class="bi bi-@(isConnected ? "wifi" : "wifi-off")"></i>
-                    </div>
-                }
                 @* @if (!isAuthenticated)
                 {
                     <a href="/login" class="btn btn-outline">
@@ -326,9 +320,11 @@
     </div>
 }
 
-<!-- ============================================
-     ✅ All styles moved to: wwwroot/css/pages/public-events.css
-     This includes: connection indicator, view toggle, calendar card, filters, event cards, modals, and responsive design
-     ============================================ -->
+<!-- Connection Status Indicator -->
+<ConnectionStatusIndicator 
+    IsOnline="@isOnline" 
+    IsSyncing="false" 
+    PendingCount="0" 
+    IsVisible="true" />
 
 
