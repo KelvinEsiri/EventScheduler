@@ -1,0 +1,36 @@
+@if (IsVisible)
+{
+    <div class="connection-status-corner @StatusClass" @onclick="OnClick">
+        <i class="bi bi-@IconClass connection-icon @StatusClass"></i>
+        <div class="connection-details">
+            <p class="connection-status-text @StatusClass">@StatusText</p>
+            @if (PendingCount > 0)
+            {
+                <p class="pending-count-text">@PendingCount change@(PendingCount != 1 ? "s" : "") pending</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsOnline { get; set; } = true;
+    
+    [Parameter]
+    public bool IsSyncing { get; set; } = false;
+    
+    [Parameter]
+    public int PendingCount { get; set; } = 0;
+    
+    [Parameter]
+    public bool IsVisible { get; set; } = true;
+    
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+    
+    private string StatusClass => IsSyncing ? "syncing" : (IsOnline ? "online" : "offline");
+    
+    private string IconClass => IsSyncing ? "arrow-repeat" : (IsOnline ? "wifi" : "wifi-off");
+    
+    private string StatusText => IsSyncing ? "Syncing..." : (IsOnline ? "Online" : "Offline");
+}
