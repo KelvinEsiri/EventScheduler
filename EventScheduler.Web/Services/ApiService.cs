@@ -32,9 +32,7 @@ public class ErrorResponse
 }
 
 /// <summary>
-/// Service for communicating with the EventScheduler API
-/// Handles all HTTP requests to the backend API including authentication and event management
-/// Follows NasosoTax reference patterns for token handling and error management
+/// Service for communicating with the EventScheduler API with offline support
 /// </summary>
 public class ApiService
 {
@@ -42,6 +40,8 @@ public class ApiService
     private readonly ILogger<ApiService> _logger;
     private readonly AuthStateProvider _authStateProvider;
     private string? _token;
+    private Func<bool>? _networkStatusProvider;
+    private Func<Task>? _offlineFallbackHandler;
 
     public ApiService(HttpClient httpClient, ILogger<ApiService> logger, AuthStateProvider authStateProvider)
     {
@@ -49,6 +49,18 @@ public class ApiService
         _logger = logger;
         _authStateProvider = authStateProvider;
     }
+
+    public void SetNetworkStatusProvider(Func<bool> provider)
+    {
+        _networkStatusProvider = provider;
+    }
+
+    public void SetOfflineFallbackHandler(Func<Task> handler)
+    {
+        _offlineFallbackHandler = handler;
+    }
+
+    private bool IsOnline => _networkStatusProvider?.Invoke() ?? true;
 
     /// <summary>
     /// Sets the authentication token for subsequent API requests
@@ -143,17 +155,15 @@ public class ApiService
     /// <summary>
     /// Retrieves all events for the authenticated user
     /// </summary>
-    /// <returns>List of user's events</returns>
     public async Task<List<EventResponse>> GetAllEventsAsync()
     {
         try
         {
-            EnsureToken(); // Inject token into request
+            EnsureToken();
             
-            // Add timeout to prevent hanging requests
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var response = await _httpClient.GetAsync("/api/events", cts.Token);
-            CheckUnauthorized(response); // Check for 401
+            CheckUnauthorized(response);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<List<EventResponse>>() ?? new List<EventResponse>();
@@ -161,11 +171,23 @@ public class ApiService
         catch (TaskCanceledException ex)
         {
             _logger.LogWarning(ex, "Request to get events was canceled or timed out");
-            return new List<EventResponse>(); // Return empty list instead of throwing
+            if (_offlineFallbackHandler != null)
+            {
+                await _offlineFallbackHandler.Invoke();
+            }
+            return new List<EventResponse>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Network error while fetching events");
+            if (_offlineFallbackHandler != null)
+            {
+                await _offlineFallbackHandler.Invoke();
+            }
+            return new List<EventResponse>();
         }
         catch (UnauthorizedAccessException)
         {
-            // Re-throw to let calling component handle redirect
             throw;
         }
         catch (Exception ex)
