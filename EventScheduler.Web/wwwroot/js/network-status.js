@@ -15,7 +15,7 @@ window.networkStatus = (function() {
         // Start periodic server health checks
         startServerHealthCheck();
         
-        console.log('[NetworkStatus] Monitor initialized - checking browser and server connectivity');
+        console.log('[NetworkStatus] Monitor initialized - checking browser online/offline state and server connectivity');
     }
     
     function handleBrowserOnline() {
