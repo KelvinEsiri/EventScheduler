@@ -147,20 +147,25 @@ public class EventService : IEventService
 
         // Auto-update status based on date changes
         var now = DateTime.UtcNow;
+        var autoStatusChanged = false;
+        
         if (eventEntity.Status == EventStatus.Late && request.EndDate > now)
         {
             // If rescheduled to future date, revert from Late to Scheduled
             eventEntity.Status = EventStatus.Scheduled;
+            autoStatusChanged = true;
             _logger.LogInformation("Event {EventId} rescheduled to future, status changed from Late to Scheduled", eventId);
         }
         else if (eventEntity.Status == EventStatus.Scheduled && request.EndDate < now)
         {
             // If scheduled event is moved to past, mark as Late
             eventEntity.Status = EventStatus.Late;
+            autoStatusChanged = true;
             _logger.LogInformation("Event {EventId} rescheduled to past, status changed from Scheduled to Late", eventId);
         }
 
-        if (!string.IsNullOrEmpty(request.Status) && Enum.TryParse<EventStatus>(request.Status, out var status))
+        // Manual status override (only if no auto status change occurred)
+        if (!autoStatusChanged && !string.IsNullOrEmpty(request.Status) && Enum.TryParse<EventStatus>(request.Status, out var status))
         {
             var oldStatus = eventEntity.Status;
             eventEntity.Status = status;
@@ -398,7 +403,7 @@ public class EventService : IEventService
             EndDate = eventEntity.EndDate,
             Location = eventEntity.Location,
             IsAllDay = eventEntity.IsAllDay,
-            Color = eventEntity.Color,
+            Color = GetEventColor(eventEntity),
             Status = eventEntity.Status.ToString(),
             EventType = eventEntity.EventType.ToString(),
             IsPublic = eventEntity.IsPublic,
@@ -418,5 +423,35 @@ public class EventService : IEventService
             UpdatedAt = eventEntity.UpdatedAt,
             IsJoined = false
         };
+    }
+
+    private string GetEventColor(Event eventEntity)
+    {
+        // Always calculate color based on status and type for consistency
+        // (Users can't customize colors per-event, only per-type)
+        var calculatedColor = eventEntity.Status switch
+        {
+            EventStatus.Completed => "#10b981", // Green
+            EventStatus.Cancelled => "#ef4444", // Red
+            EventStatus.InProgress => "#f59e0b", // Amber
+            EventStatus.Late => "#f59e0b", // Amber
+            _ => eventEntity.EventType switch // Default by event type
+            {
+                EventType.Festival => "#ec4899", // Pink
+                EventType.Interview => "#8b5cf6", // Purple
+                EventType.Birthday => "#f97316", // Orange
+                EventType.Exam => "#dc2626", // Dark Red
+                EventType.Appointment => "#06b6d4", // Cyan
+                EventType.Meeting => "#3b82f6", // Blue
+                EventType.Reminder => "#eab308", // Yellow
+                EventType.Task => "#14b8a6", // Teal
+                _ => "#6366f1" // Indigo (default for Other)
+            }
+        };
+        
+        _logger.LogInformation("🎨 Calculated color for event {EventId} (Type: {EventType}, Status: {Status}): {Color}", 
+            eventEntity.Id, eventEntity.EventType, eventEntity.Status, calculatedColor);
+        
+        return calculatedColor;
     }
 }

@@ -74,6 +74,7 @@ builder.Services.AddHostedService<AuthCacheCleanupService>();
 
 // Register custom services
 builder.Services.AddScoped<ApiService>();
+builder.Services.AddScoped<EventUIHelperService>();
 
 // Register AuthStateProvider as SCOPED (per Blazor circuit)
 // New instance created for each SignalR circuit

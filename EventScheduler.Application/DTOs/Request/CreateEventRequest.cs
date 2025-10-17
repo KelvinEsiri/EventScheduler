@@ -41,8 +41,7 @@ public class EventInvitationRequest
     [StringLength(100, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 100 characters")]
     public required string InviteeName { get; set; }
 
-    [Required(ErrorMessage = "Invitee email is required")]
-    [EmailAddress(ErrorMessage = "Invalid email address")]
+    [OptionalEmailAddress(ErrorMessage = "Invalid email address format")]
     [StringLength(100, ErrorMessage = "Email cannot exceed 100 characters")]
-    public required string InviteeEmail { get; set; }
+    public string? InviteeEmail { get; set; }
 }

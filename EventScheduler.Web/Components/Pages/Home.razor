@@ -1,7 +1,4 @@
 ﻿@page "/"
-@using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
 <PageTitle>Event Scheduler - Organize Your Schedule</PageTitle>
@@ -105,13 +102,3 @@
         </div>
     </div>
 </div>
-
-@code {
-    private bool isAuthenticated = false;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
-    }
-}

@@ -8,7 +8,7 @@ public class EventInvitation
     public int Id { get; set; }
     public int EventId { get; set; }
     public required string InviteeName { get; set; }
-    public required string InviteeEmail { get; set; }
+    public string? InviteeEmail { get; set; }
     public int? UserId { get; set; }
     public DateTime InvitedAt { get; set; } = DateTime.UtcNow;
 

@@ -12,6 +12,23 @@ namespace EventScheduler.Web.Services;
 public class ErrorResponse
 {
     public string? Error { get; set; }
+    public string? Title { get; set; }
+    public Dictionary<string, string[]>? Errors { get; set; }
+    
+    public string GetErrorMessage()
+    {
+        // If we have validation errors, combine them into a readable message
+        if (Errors != null && Errors.Any())
+        {
+            var messages = Errors
+                .SelectMany(kvp => kvp.Value.Select(msg => $"{kvp.Key}: {msg}"))
+                .ToList();
+            return string.Join("; ", messages);
+        }
+        
+        // Otherwise return the simple error or title
+        return Error ?? Title ?? "An error occurred";
+    }
 }
 
 /// <summary>
@@ -236,9 +253,9 @@ public class ApiService
                     var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(errorContent, 
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     
-                    if (errorResponse?.Error != null)
+                    if (errorResponse != null)
                     {
-                        throw new InvalidOperationException(errorResponse.Error);
+                        throw new InvalidOperationException(errorResponse.GetErrorMessage());
                     }
                 }
                 catch (JsonException)
@@ -294,9 +311,9 @@ public class ApiService
                     var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(errorContent, 
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     
-                    if (errorResponse?.Error != null)
+                    if (errorResponse != null)
                     {
-                        throw new InvalidOperationException(errorResponse.Error);
+                        throw new InvalidOperationException(errorResponse.GetErrorMessage());
                     }
                 }
                 catch (JsonException)

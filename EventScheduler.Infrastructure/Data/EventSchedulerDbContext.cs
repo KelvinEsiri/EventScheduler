@@ -73,7 +73,7 @@ public class EventSchedulerDbContext : DbContext
             entity.HasIndex(e => e.EventId);
             entity.HasIndex(e => e.UserId);
             entity.Property(e => e.InviteeName).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.InviteeEmail).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.InviteeEmail).HasMaxLength(100);
 
             entity.HasOne(e => e.Event)
                 .WithMany(e => e.Invitations)

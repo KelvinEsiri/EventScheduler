@@ -320,6 +320,14 @@ window.updateEventInCalendar = function(eventData, elementId = null) {
     const calendar = elementId ? interop.calendars[elementId] : interop.getCalendar();
     if (!calendar) return;
     
+    console.log('🎨 updateEventInCalendar received:', {
+        id: eventData.id,
+        title: eventData.title,
+        color: eventData.color,
+        eventType: eventData.eventType,
+        fullEventData: eventData
+    });
+    
     const event = calendar.getEventById(eventData.id.toString());
     if (event) {
         event.setProp('title', eventData.title);
@@ -332,7 +340,7 @@ window.updateEventInCalendar = function(eventData, elementId = null) {
         event.setExtendedProp('location', eventData.location);
         event.setExtendedProp('eventType', eventData.eventType);
         event.setExtendedProp('isPublic', eventData.isPublic);
-        console.log(`Event updated in calendar '${elementId || 'default'}':`, eventData.id);
+        console.log(`Event updated in calendar '${elementId || 'default'}':`, eventData.id, 'with color:', eventData.color);
     } else {
         console.warn('Event not found, adding instead:', eventData.id);
         window.addEventToCalendar(eventData, elementId);

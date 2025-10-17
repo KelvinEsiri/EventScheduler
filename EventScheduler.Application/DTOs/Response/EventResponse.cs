@@ -29,7 +29,7 @@ public class EventInvitationResponse
 {
     public int Id { get; set; }
     public string InviteeName { get; set; } = string.Empty;
-    public string InviteeEmail { get; set; } = string.Empty;
+    public string? InviteeEmail { get; set; }
     public DateTime InvitedAt { get; set; }
     public int? UserId { get; set; }
 }
