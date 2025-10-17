@@ -246,23 +246,25 @@ public class EventService : IEventService
         
         // Update late events automatically
         var now = DateTime.UtcNow;
-        var hasChanges = false;
+        var eventsToUpdate = new List<Event>();
         
         foreach (var eventEntity in events)
         {
             if (eventEntity.Status == EventStatus.Scheduled && eventEntity.EndDate < now)
             {
                 eventEntity.Status = EventStatus.Late;
-                await _eventRepository.UpdateAsync(eventEntity);
-                hasChanges = true;
+                eventsToUpdate.Add(eventEntity);
                 _logger.LogInformation("Event {EventId} automatically marked as Late", eventEntity.Id);
             }
         }
         
-        // Reload if there were changes
-        if (hasChanges)
+        // Batch update all late events if any
+        if (eventsToUpdate.Any())
         {
-            events = await _eventRepository.GetAllAsync(userId);
+            foreach (var eventEntity in eventsToUpdate)
+            {
+                await _eventRepository.UpdateAsync(eventEntity);
+            }
         }
         
         _logger.LogInformation("Retrieved {Count} events for user {UserId}", events.Count(), userId);
