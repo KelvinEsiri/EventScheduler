@@ -873,6 +873,11 @@ public partial class CalendarView : IAsyncDisposable
                         events.Add(createdEvent);
                         await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
                     }
+                    else
+                    {
+                        Logger.LogWarning("CalendarView: Failed to create event offline - received null response");
+                        throw new InvalidOperationException("Failed to create event offline. Please try again.");
+                    }
                 }
                 
                 ShowSuccess(isOnline ? "Event created successfully!" : "Event created offline - will sync when online");
