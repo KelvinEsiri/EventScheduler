@@ -23,6 +23,7 @@ public class EventResponse
     public List<EventAttendeeResponse>? Attendees { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public DateTime LastModified => UpdatedAt ?? CreatedAt;
     public bool IsJoined { get; set; }
     public string? CreatedByUserName { get; set; }
     public bool IsJoinedEvent { get; set; }

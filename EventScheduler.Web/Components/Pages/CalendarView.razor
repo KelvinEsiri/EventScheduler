@@ -22,12 +22,6 @@
                 </div>
             </div>
             <div class="header-actions">
-                @if (!string.IsNullOrEmpty(connectionStatus))
-                {
-                    <div class="connection-indicator @(isConnected ? "connected" : "disconnected")" title="@connectionStatus">
-                        <i class="bi bi-@(isConnected ? "wifi" : "wifi-off")"></i>
-                    </div>
-                }
                 <a href="/calendar-list" class="btn btn-outline">
                     <i class="bi bi-list-task"></i>
                     <span>List View</span>
@@ -83,8 +77,8 @@
                             <p>@(isEditMode ? "Update your event details" : "Add a new event to your calendar")</p>
                             @if (isEditMode && selectedEvent?.IsJoinedEvent == true)
                             {
-                                <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; padding: 0.5rem; margin-top: 0.5rem; border-radius: 0.25rem;">
-                                    <small style="color: #d97706; display: flex; align-items: center; gap: 0.25rem;">
+                                <div class="event-warning-banner">
+                                    <small class="event-warning-text">
                                         <i class="bi bi-info-circle"></i>
                                         This is a joined public event. You can only delete it, not edit.
                                     </small>
@@ -267,19 +261,19 @@
                         <div class="modal-icon">
                             <i class="bi bi-calendar-event"></i>
                         </div>
-                        <div style="flex: 1;">
-                            <h3 style="margin: 0 0 0.5rem 0;">Event Details</h3>
-                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                                <strong style="font-size: 1.125rem;">@selectedEvent.Title</strong>
+                        <div class="event-details-title-container">
+                            <h3 class="event-details-title">Event Details</h3>
+                            <div class="event-details-badges-row">
+                                <strong class="event-details-title-text">@selectedEvent.Title</strong>
                                 @if (selectedEvent.IsJoinedEvent)
                                 {
-                                    <span class="joined-badge" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                    <span class="joined-badge event-badge-compact">
                                         <i class="bi bi-calendar-check"></i> Joined
                                     </span>
                                 }
                                 @if (selectedEvent.IsPublic)
                                 {
-                                    <span class="public-badge" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                    <span class="public-badge event-badge-compact">
                                         <i class="bi bi-globe"></i> Public
                                     </span>
                                 }
@@ -377,7 +371,7 @@
                         }
                         else
                         {
-                            <small style="color: #6b7280; display: flex; align-items: center; gap: 0.25rem;">
+                            <small class="event-info-text">
                                 <i class="bi bi-info-circle"></i>
                                 Joined events can only be deleted
                             </small>
@@ -430,7 +424,7 @@
                             @foreach (var evt in dayEvents)
                             {
                                 <div class="day-event-card" @onclick="async () => await ShowEventDetailsFromDayList(evt)">
-                                    <div class="event-card-header" data-color="@(evt.Color ?? "#3788d8")" style="--event-color: @(evt.Color ?? "#3788d8")">
+                                    <div class="event-card-header day-event-card-header" data-color="@(evt.Color ?? "#3788d8")" style="--event-color: @(evt.Color ?? "#3788d8")">
                                         <div class="event-time">
                                             @if (evt.IsAllDay)
                                             {
@@ -499,6 +493,13 @@
     </div>
 }
 
+<!-- Connection Status Indicator -->
+<ConnectionStatusIndicator 
+    IsOnline="@isOnline" 
+    IsSyncing="@OfflineSyncService.IsSyncing" 
+    PendingCount="@pendingOperationsCount" 
+    IsVisible="true" />
+
 <!-- Toast Notifications -->
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -509,5 +510,3 @@
 {
     <ToastNotification title="Error" message="@errorMessage" type="ToastNotification.ToastType.Error" OnClose="@(() => errorMessage = null)" />
 }
-
-<!-- CalendarView styles now in styles/components/connection-indicator.css, -->

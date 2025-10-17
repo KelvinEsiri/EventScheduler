@@ -14,9 +14,13 @@ public class OfflineSyncService
     private readonly NetworkStatusService _networkStatus;
     private readonly ILogger<OfflineSyncService> _logger;
     private bool _isSyncing = false;
+    private int _pendingCount = 0;
 
     public event Func<string, Task>? OnSyncStatusChanged;
     public event Func<int, Task>? OnPendingOperationsCountChanged;
+    
+    public bool IsSyncing => _isSyncing;
+    public int PendingCount => _pendingCount;
 
     public OfflineSyncService(
         ApiService apiService,
@@ -146,7 +150,7 @@ public class OfflineSyncService
             existingEvent.Color = request.Color;
             existingEvent.EventType = request.EventType;
             existingEvent.IsPublic = request.IsPublic;
-            existingEvent.Status = request.Status;
+            existingEvent.Status = request.Status ?? existingEvent.Status;
             
             await _offlineStorage.SaveEventsAsync(events);
         }
@@ -286,15 +290,17 @@ public class OfflineSyncService
     private async Task NotifyPendingOperationsCount()
     {
         var pendingOperations = await _offlineStorage.GetPendingOperationsAsync();
+        _pendingCount = pendingOperations.Count;
         if (OnPendingOperationsCountChanged != null)
         {
-            await OnPendingOperationsCountChanged.Invoke(pendingOperations.Count);
+            await OnPendingOperationsCountChanged.Invoke(_pendingCount);
         }
     }
 
     public async Task<int> GetPendingOperationsCountAsync()
     {
         var pendingOperations = await _offlineStorage.GetPendingOperationsAsync();
-        return pendingOperations.Count;
+        _pendingCount = pendingOperations.Count;
+        return _pendingCount;
     }
 }

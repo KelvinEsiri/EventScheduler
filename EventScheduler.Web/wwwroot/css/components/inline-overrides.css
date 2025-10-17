@@ -1,0 +1,260 @@
+/* Inline style overrides - moved from component markup to CSS */
+
+/* Event details modal styles */
+.event-details-title-container {
+    flex: 1;
+}
+
+.event-details-title {
+    margin: 0 0 0.5rem 0;
+}
+
+.event-details-badges-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.event-details-title-text {
+    font-size: 1.125rem;
+}
+
+.event-badge-compact {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.event-info-text {
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Event warning banner */
+.event-warning-banner {
+    background: rgba(245, 158, 11, 0.1);
+    border-left: 3px solid #f59e0b;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.event-warning-text {
+    color: #d97706;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Day events card */
+.day-event-card-header {
+    --event-color: #3788d8;
+}
+
+/* Calendar list view toggle */
+.calendar-list-view-toggle {
+    margin-bottom: 1.5rem;
+}
+
+/* Public events attendee list */
+.attendee-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.attendee-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 100%;
+}
+
+.attendee-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.attendee-icon {
+    color: #10b981;
+}
+
+.attendee-name {
+    font-weight: 500;
+}
+
+.attendee-date {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+/* Modal action buttons */
+.modal-actions-row {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.modal-action-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+/* Password strength indicator (Register page) */
+.password-strength-bar-container {
+    width: 100%;
+    height: 0.25rem;
+    background: #e5e7eb;
+    border-radius: 0.125rem;
+    overflow: hidden;
+}
+
+/* Connection status and sync indicator */
+.connection-status-corner {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 250px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.connection-status-corner:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.connection-status-corner.online {
+    border-left: 3px solid #10b981;
+}
+
+.connection-status-corner.offline {
+    border-left: 3px solid #ef4444;
+}
+
+.connection-status-corner.syncing {
+    border-left: 3px solid #f59e0b;
+}
+
+.connection-icon {
+    font-size: 1.25rem;
+}
+
+.connection-icon.online {
+    color: #10b981;
+}
+
+.connection-icon.offline {
+    color: #ef4444;
+}
+
+.connection-icon.syncing {
+    color: #f59e0b;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.connection-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.connection-status-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.connection-status-text.online {
+    color: #10b981;
+}
+
+.connection-status-text.offline {
+    color: #ef4444;
+}
+
+.connection-status-text.syncing {
+    color: #f59e0b;
+}
+
+.pending-count-text {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Small screen adjustments */
+@media (max-width: 768px) {
+    .connection-status-corner {
+        bottom: 0.5rem;
+        right: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        max-width: 200px;
+    }
+    
+    .connection-icon {
+        font-size: 1rem;
+    }
+    
+    .connection-status-text {
+        font-size: 0.75rem;
+    }
+    
+    .pending-count-text {
+        font-size: 0.625rem;
+    }
+    
+    .event-details-badges-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .modal-actions-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .modal-action-info {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .connection-status-corner {
+        bottom: 0.25rem;
+        right: 0.25rem;
+        padding: 0.375rem 0.5rem;
+        max-width: 160px;
+        font-size: 0.625rem;
+    }
+    
+    .connection-details {
+        gap: 0.0625rem;
+    }
+}

@@ -21,12 +21,6 @@
                 </div>
             </div>
             <div class="header-actions">
-                @if (!string.IsNullOrEmpty(connectionStatus))
-                {
-                    <div class="connection-indicator @(isConnected ? "connected" : "disconnected")" title="@connectionStatus">
-                        <i class="bi bi-@(isConnected ? "wifi" : "wifi-off")"></i>
-                    </div>
-                }
                 @* @if (!isAuthenticated)
                 {
                     <a href="/login" class="btn btn-outline">
@@ -275,15 +269,15 @@
 
                     @if (selectedEvent.Attendees != null && selectedEvent.Attendees.Any())
                     {
-                        <div class="detail-row" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;">
+                        <div class="detail-row attendee-detail-row">
                             <strong><i class="bi bi-people-fill"></i> Attendees:</strong>
-                            <div style="display: flex; flex-direction: column; gap: 0.25rem; width: 100%;">
+                            <div class="attendee-list-container">
                                 @foreach (var attendee in selectedEvent.Attendees.OrderBy(a => a.JoinedAt))
                                 {
-                                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem; border-radius: 0.25rem; background: rgba(99, 102, 241, 0.05);">
-                                        <i class="bi bi-person-check-fill" style="color: #10b981;"></i>
-                                        <span style="font-weight: 500;">@attendee.UserName</span>
-                                        <span style="color: #6b7280; font-size: 0.875rem;">• Joined @attendee.JoinedAt.ToString("MMM dd, yyyy")</span>
+                                    <div class="attendee-item">
+                                        <i class="bi bi-person-check-fill attendee-icon"></i>
+                                        <span class="attendee-name">@attendee.UserName</span>
+                                        <span class="attendee-date">• Joined @attendee.JoinedAt.ToString("MMM dd, yyyy")</span>
                                     </div>
                                 }
                             </div>
@@ -291,10 +285,10 @@
                     }
                 </div>
 
-                <div class="modal-actions" style="margin-top: 1.5rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <div class="modal-actions modal-actions-row">
                     @if (isAuthenticated && selectedEvent.UserId == currentUserId)
                     {
-                        <div style="display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+                        <div class="modal-action-info">
                             <i class="bi bi-info-circle"></i>
                             <span>This is your event</span>
                         </div>
@@ -326,9 +320,16 @@
     </div>
 }
 
-<!-- ============================================
-     ✅ All styles moved to: wwwroot/css/pages/public-events.css
-     This includes: connection indicator, view toggle, calendar card, filters, event cards, modals, and responsive design
-     ============================================ -->
+<!-- Connection Status Indicator (simplified for public events) -->
+@if (!isOnline)
+{
+    <div class="connection-status-corner offline">
+        <i class="bi bi-wifi-off connection-icon offline"></i>
+        <div class="connection-details">
+            <p class="connection-status-text offline">Offline</p>
+            <p class="pending-count-text">Public events require connection</p>
+        </div>
+    </div>
+}
 
 

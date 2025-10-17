@@ -30,6 +30,7 @@ public partial class CalendarList
     private string searchQuery = "";
     private TabType activeTab = TabType.Active;
     private bool isOnline = true;
+    private int pendingOperationsCount = 0;
 
     public enum TabType
     {
@@ -79,6 +80,13 @@ public partial class CalendarList
             isOnline = online;
             await InvokeAsync(StateHasChanged);
         };
+        OfflineSyncService.OnPendingOperationsCountChanged += async (count) =>
+        {
+            pendingOperationsCount = count;
+            await InvokeAsync(StateHasChanged);
+        };
+        
+        pendingOperationsCount = await OfflineSyncService.GetPendingOperationsCountAsync();
         
         // Try to check auth, but don't redirect here - wait for OnAfterRenderAsync
         // because during prerendering, localStorage hasn't been read yet
