@@ -18,37 +18,32 @@ public partial class CalendarView : IAsyncDisposable
     [Inject] private ILogger<CalendarView> Logger { get; set; } = default!;
     [Inject] private EventUIHelperService UIHelper { get; set; } = default!;
 
-    // State management
     private List<EventResponse> events = new();
-    private bool isLoading = true;  // Start with loading = true
+    private bool isLoading = true;
     private bool calendarInitialized = false;
-    private bool initializationAttempted = false; // Prevents multiple initialization attempts
+    private bool initializationAttempted = false;
     private DotNetObjectReference<CalendarView>? dotNetHelper;
     private bool hasCheckedAuth = false;
     private string? errorMessage;
     private string? successMessage;
     private int currentUserId = 0;
     
-    // SignalR - Optimized connection management
     private HubConnection? hubConnection;
     private bool isConnected = false;
     private string? connectionStatus;
     private readonly HashSet<int> pendingLocalChanges = new();
     private DateTime? lastLocalOperationTime = null;
     
-    // Modal state - Consolidated
     private bool showModal = false;
     private bool isEditMode = false;
     private int editEventId = 0;
     private bool isSaving = false;
     
-    // Event details modal state
     private bool showDetailsModal = false;
     private EventResponse? selectedEvent = null;
     private bool isUserOrganizer = false;
     private bool isUserParticipant = false;
     
-    // Day events modal state
     private bool showDayEventsModal = false;
     private DateTime? selectedDate = null;
     private List<EventResponse> dayEvents = new();
@@ -65,8 +60,6 @@ public partial class CalendarView : IAsyncDisposable
     {
         Logger.LogInformation("CalendarView: Initializing component (prerender)");
         
-        // Try to check auth, but don't redirect here - wait for OnAfterRenderAsync
-        // because during prerendering, localStorage hasn't been read yet
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         
@@ -75,13 +68,11 @@ public partial class CalendarView : IAsyncDisposable
             Logger.LogInformation("CalendarView: User authenticated in memory");
             hasCheckedAuth = true;
             
-            // Extract and cache user ID
             if (int.TryParse(user.FindFirst("userId")?.Value, out int userId))
             {
                 currentUserId = userId;
             }
             
-            // Set API token
             var token = user.FindFirst("token")?.Value;
             if (!string.IsNullOrEmpty(token))
             {
@@ -90,7 +81,6 @@ public partial class CalendarView : IAsyncDisposable
                 
                 try
                 {
-                    // Initialize in parallel for faster load
                     await Task.WhenAll(
                         InitializeSignalR(),
                         LoadEvents()
@@ -99,14 +89,12 @@ public partial class CalendarView : IAsyncDisposable
                 catch (TaskCanceledException ex)
                 {
                     Logger.LogWarning(ex, "CalendarView: Initialization was canceled (likely due to navigation)");
-                    // Don't throw, just log - component is being disposed
                 }
             }
         }
         else
         {
             Logger.LogInformation("CalendarView: Auth not yet loaded, will check in OnAfterRenderAsync");
-            // Don't redirect here - wait for OnAfterRenderAsync when localStorage is available
         }
     }
 
@@ -136,12 +124,10 @@ public partial class CalendarView : IAsyncDisposable
                 })
                 .Build();
 
-            // Connection lifecycle handlers
             hubConnection.Reconnecting += OnReconnecting;
             hubConnection.Reconnected += OnReconnected;
             hubConnection.Closed += OnClosed;
 
-            // Register optimized event handlers
             RegisterSignalRHandlers();
 
             await hubConnection.StartAsync();
@@ -162,10 +148,8 @@ public partial class CalendarView : IAsyncDisposable
     {
         if (hubConnection == null) return;
 
-        // Optimized event created handler
         hubConnection.On<EventResponse>("EventCreated", async (eventData) => {
             await InvokeAsync(async () => {
-                // Skip notification for local operations
                 if (IsRecentLocalOperation())
                 {
                     lastLocalOperationTime = null;
@@ -181,7 +165,6 @@ public partial class CalendarView : IAsyncDisposable
             });
         });
 
-        // Optimized event updated handler
         hubConnection.On<EventResponse>("EventUpdated", async (eventData) => {
             await InvokeAsync(async () => {
                 if (!pendingLocalChanges.Remove(eventData.Id))
@@ -195,7 +178,6 @@ public partial class CalendarView : IAsyncDisposable
             });
         });
 
-        // Optimized event deleted handler
         hubConnection.On<object>("EventDeleted", async (deletedEventInfo) => {
             await InvokeAsync(async () => {
                 var eventId = ExtractEventId(deletedEventInfo);
@@ -212,7 +194,6 @@ public partial class CalendarView : IAsyncDisposable
         });
     }
 
-    // Helper methods for SignalR optimization
     private bool IsRecentLocalOperation() => 
         lastLocalOperationTime.HasValue && 
         (DateTime.UtcNow - lastLocalOperationTime.Value).TotalSeconds < 2;
@@ -240,7 +221,6 @@ public partial class CalendarView : IAsyncDisposable
     private void ShowSuccess(string message)
     {
         successMessage = message;
-        // Auto-clear after 3 seconds
         _ = Task.Delay(3000).ContinueWith(_ => {
             successMessage = null;
             InvokeAsync(StateHasChanged);
@@ -250,7 +230,6 @@ public partial class CalendarView : IAsyncDisposable
     private void ShowError(string message)
     {
         errorMessage = message;
-        // Auto-clear after 5 seconds
         _ = Task.Delay(5000).ContinueWith(_ => {
             errorMessage = null;
             InvokeAsync(StateHasChanged);
@@ -294,7 +273,6 @@ public partial class CalendarView : IAsyncDisposable
             Logger.LogInformation("CalendarView: OnAfterRenderAsync - checking auth with localStorage available");
             hasCheckedAuth = true;
             
-            // Now JavaScript is available and AuthStateProvider can load from localStorage
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
             
@@ -307,7 +285,6 @@ public partial class CalendarView : IAsyncDisposable
                 return;
             }
             
-            // Extract and cache user ID
             if (int.TryParse(user.FindFirst("userId")?.Value, out int userId))
             {
                 currentUserId = userId;
@@ -334,7 +311,6 @@ public partial class CalendarView : IAsyncDisposable
             }
         }
         
-        // ONLY initialize on first render after data loads (same as PublicEvents)
         if (firstRender && !calendarInitialized && !isLoading)
         {
             Logger.LogInformation("CalendarView: Conditions met for calendar initialization");
@@ -342,7 +318,6 @@ public partial class CalendarView : IAsyncDisposable
         }
         else if (!firstRender && hasCheckedAuth && !calendarInitialized && !isLoading)
         {
-            // Initialize directly if still not initialized after data loads
             Logger.LogInformation("CalendarView: Initializing calendar after data load");
             await InitializeCalendar();
         }
@@ -350,29 +325,26 @@ public partial class CalendarView : IAsyncDisposable
 
     private async Task InitializeCalendar()
     {
-        // Prevent double initialization (same as PublicEvents)
         if (calendarInitialized || initializationAttempted)
         {
             Logger.LogInformation("CalendarView: Calendar already initialized or attempt in progress, skipping");
             return;
         }
 
-        initializationAttempted = true; // Mark that we're attempting initialization
+        initializationAttempted = true;
         
         try
         {
             Logger.LogInformation("CalendarView: Attempting to initialize calendar with {Count} events", events.Count);
             
-            // Ensure DOM element exists
             var elementExists = await JSRuntime.InvokeAsync<bool>("eval", "document.getElementById('calendar') !== null");
             if (!elementExists)
             {
                 Logger.LogError("CalendarView: Calendar element 'calendar' not found in DOM");
-                initializationAttempted = false; // Reset flag to allow retry
+                initializationAttempted = false;
                 return;
             }
             
-            // Check if there's an existing calendar instance and destroy it
             try
             {
                 var hasExistingCalendar = await JSRuntime.InvokeAsync<bool>("eval", 
@@ -382,7 +354,7 @@ public partial class CalendarView : IAsyncDisposable
                 {
                     Logger.LogWarning("CalendarView: Found existing calendar instance, destroying it first");
                     await JSRuntime.InvokeVoidAsync("fullCalendarInterop.destroy", "calendar");
-                    await Task.Delay(100); // Give time for cleanup
+                    await Task.Delay(100);
                 }
             }
             catch (Exception ex)
@@ -393,18 +365,16 @@ public partial class CalendarView : IAsyncDisposable
             dotNetHelper = DotNetObjectReference.Create(this);
             var calendarEvents = ConvertToFullCalendarFormat();
             
-            // Give time for DOM to be fully ready and CSS to apply
             await Task.Delay(500);
             
             var initialized = await JSRuntime.InvokeAsync<bool>("fullCalendarInterop.initialize", 
-                "calendar", dotNetHelper, calendarEvents, true); // true for editable calendar
+                "calendar", dotNetHelper, calendarEvents, true);
             
             if (initialized)
             {
                 calendarInitialized = true;
                 Logger.LogInformation("CalendarView: Calendar initialized successfully with {Count} events", calendarEvents.Length);
                 
-                // Force calendar to recalculate size after initialization
                 await Task.Delay(100);
                 await JSRuntime.InvokeVoidAsync("fullCalendarInterop.updateSize", "calendar");
                 Logger.LogInformation("CalendarView: Calendar size updated");
@@ -412,13 +382,13 @@ public partial class CalendarView : IAsyncDisposable
             else
             {
                 Logger.LogWarning("CalendarView: Calendar initialization returned false");
-                initializationAttempted = false; // Reset flag to allow retry
+                initializationAttempted = false;
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "CalendarView: Error initializing calendar");
-            initializationAttempted = false; // Reset flag to allow retry
+            initializationAttempted = false;
         }
     }
 
@@ -442,14 +412,12 @@ public partial class CalendarView : IAsyncDisposable
                 catch (JSDisconnectedException)
                 {
                     Logger.LogWarning("CalendarView: Circuit disconnected while updating calendar");
-                    // Component is being disposed, ignore
                 }
             }
         }
         catch (TaskCanceledException ex)
         {
             Logger.LogWarning(ex, "CalendarView: Load events was canceled");
-            // Don't show error to user if operation was canceled due to navigation
         }
         catch (Exception ex)
         {
@@ -461,13 +429,11 @@ public partial class CalendarView : IAsyncDisposable
             isLoading = false;
             Logger.LogInformation("CalendarView: Loading complete, isLoading={IsLoading}", isLoading);
             
-            // If calendar not initialized yet, trigger initialization (same as PublicEvents)
             if (!calendarInitialized)
             {
-                StateHasChanged(); // Trigger OnAfterRenderAsync with isLoading=false
-                await Task.Delay(100); // Give time for render
+                StateHasChanged();
+                await Task.Delay(100);
                 
-                // Initialize directly if still not initialized
                 if (!calendarInitialized)
                 {
                     await InitializeCalendar();
@@ -500,28 +466,26 @@ public partial class CalendarView : IAsyncDisposable
 
     private string GetEventColor(string status, string eventType)
     {
-        // Color by status first
         return status.ToLower() switch
         {
-            "completed" => "#10b981", // Green
-            "cancelled" => "#ef4444", // Red
-            "in progress" => "#f59e0b", // Amber
-            _ => eventType switch // Default by event type
+            "completed" => "#10b981",
+            "cancelled" => "#ef4444",
+            "in progress" => "#f59e0b",
+            _ => eventType switch
             {
-                "Festival" => "#ec4899", // Pink
-                "Interview" => "#8b5cf6", // Purple
-                "Birthday" => "#f97316", // Orange
-                "Exam" => "#dc2626", // Dark Red
-                "Appointment" => "#06b6d4", // Cyan
-                "Meeting" => "#3b82f6", // Blue
-                "Reminder" => "#eab308", // Yellow
-                "Task" => "#14b8a6", // Teal
-                _ => "#6366f1" // Indigo (default)
+                "Festival" => "#ec4899",
+                "Interview" => "#8b5cf6",
+                "Birthday" => "#f97316",
+                "Exam" => "#dc2626",
+                "Appointment" => "#06b6d4",
+                "Meeting" => "#3b82f6",
+                "Reminder" => "#eab308",
+                "Task" => "#14b8a6",
+                _ => "#6366f1"
             }
         };
     }
 
-    // Modal management
     private void ShowCreateModal()
     {
         isEditMode = false;
@@ -542,7 +506,7 @@ public partial class CalendarView : IAsyncDisposable
         showModal = false;
         isEditMode = false;
         editEventId = 0;
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
 
     private void CloseDetailsModal()
@@ -551,10 +515,9 @@ public partial class CalendarView : IAsyncDisposable
         selectedEvent = null;
         isUserOrganizer = false;
         isUserParticipant = false;
-        StateHasChanged(); // Force UI update
+        StateHasChanged();
     }
 
-    // JSInvokable methods - called from JavaScript
     [JSInvokable]
     public Task OnDateClick(string dateStr)
     {

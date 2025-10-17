@@ -33,43 +33,27 @@ try
 
     builder.Host.UseSerilog();
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// ═══════════════════════════════════════════════════════════════
-// SESSION SUPPORT FOR AUTHENTICATION PERSISTENCE
-// ═══════════════════════════════════════════════════════════════
-// Add Session support for authentication persistence across reconnections
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromHours(24); // Session timeout - matches JWT expiration
-    options.Cookie.HttpOnly = true; // Prevents JavaScript access - security
-    options.Cookie.IsEssential = true; // Required for functionality
-    options.Cookie.Name = ".EventScheduler.Session"; // Consistent session cookie name
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // HTTPS only in production
+    options.IdleTimeout = TimeSpan.FromHours(24);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.Name = ".EventScheduler.Session";
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
 builder.Services.AddHttpContextAccessor();
 
-// Configure HttpClient for API calls
 builder.Services.AddScoped(sp => new HttpClient 
 { 
     BaseAddress = new Uri(builder.Configuration["ApiSettings:BaseUrl"] ?? "http://localhost:5006") 
 });
 
-// ═══════════════════════════════════════════════════════════════
-// AUTHENTICATION STATE MANAGEMENT - THREE-TIER PERSISTENCE
-// ═══════════════════════════════════════════════════════════════
-
-// ⚡ CRITICAL: Register AuthStateCache as SINGLETON
-// This ensures the cache survives circuit recreations (reconnections)
-// The cache persists across all user sessions on the server
 builder.Services.AddSingleton<AuthStateCache>();
-
-// Register background service for cache cleanup
-// Runs every 30 minutes to remove expired entries
 builder.Services.AddHostedService<AuthCacheCleanupService>();
 
 // Register custom services
@@ -78,19 +62,9 @@ builder.Services.AddScoped<EventUIHelperService>();
 builder.Services.AddScoped<OfflineStorageService>();
 builder.Services.AddScoped<NetworkStatusService>();
 
-// Register AuthStateProvider as SCOPED (per Blazor circuit)
-// New instance created for each SignalR circuit
-// RestoreFromCache() runs in constructor to restore auth state
 builder.Services.AddScoped<AuthStateProvider>();
-
-// Register as AuthenticationStateProvider for Blazor
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => provider.GetRequiredService<AuthStateProvider>());
-
-// Add Cascading Authentication State for Blazor components
-// This makes auth state available to all components via [CascadingParameter]
 builder.Services.AddCascadingAuthenticationState();
-
-// Add authorization services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
@@ -104,18 +78,9 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-// ⚡ CRITICAL: Enable static files from wwwroot (JS, CSS, images)
-// This allows serving reconnection-handler.js and other static files
 app.UseStaticFiles();
-
-// ⚡ CRITICAL: Enable Session middleware BEFORE Blazor components
-// This ensures session cookie is available when AuthStateProvider is created
-// Session middleware must come before MapRazorComponents
 app.UseSession();
-
 app.UseAntiforgery();
-
 app.UseSerilogRequestLogging();
 
 app.MapStaticAssets();

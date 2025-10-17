@@ -6,9 +6,6 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
-/// <summary>
-/// Helper class for deserializing API error responses
-/// </summary>
 public class ErrorResponse
 {
     public string? Error { get; set; }
@@ -17,7 +14,6 @@ public class ErrorResponse
     
     public string GetErrorMessage()
     {
-        // If we have validation errors, combine them into a readable message
         if (Errors != null && Errors.Any())
         {
             var messages = Errors
@@ -26,7 +22,6 @@ public class ErrorResponse
             return string.Join("; ", messages);
         }
         
-        // Otherwise return the simple error or title
         return Error ?? Title ?? "An error occurred";
     }
 }
@@ -62,29 +57,18 @@ public class ApiService
 
     private bool IsOnline => _networkStatusProvider?.Invoke() ?? true;
 
-    /// <summary>
-    /// Sets the authentication token for subsequent API requests
-    /// </summary>
-    /// <param name="token">JWT bearer token</param>
     public void SetToken(string token)
     {
         _token = token;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
-    /// <summary>
-    /// Clears the authentication token (used during logout)
-    /// </summary>
     public void ClearToken()
     {
         _token = null;
         _httpClient.DefaultRequestHeaders.Authorization = null;
     }
 
-    /// <summary>
-    /// Ensures token is present in request headers before making API calls
-    /// Automatically injects token from AuthStateProvider if not already set
-    /// </summary>
     private void EnsureToken()
     {
         var token = _token ?? _authStateProvider.GetToken();
@@ -94,10 +78,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Checks if the response indicates an unauthorized access (401)
-    /// Throws UnauthorizedAccessException which protected pages should catch and handle
-    /// </summary>
     private void CheckUnauthorized(HttpResponseMessage response)
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -108,11 +88,6 @@ public class ApiService
 
     #region Authentication Endpoints
 
-    /// <summary>
-    /// Registers a new user account
-    /// </summary>
-    /// <param name="request">Registration details including username, email, and password</param>
-    /// <returns>Login response with user details and authentication token</returns>
     public async Task<LoginResponse?> RegisterAsync(RegisterRequest request)
     {
         try
@@ -128,11 +103,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Authenticates a user and returns an authentication token
-    /// </summary>
-    /// <param name="request">Login credentials (username and password)</param>
-    /// <returns>Login response with user details and authentication token</returns>
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
         try
@@ -152,9 +122,6 @@ public class ApiService
 
     #region Event Management Endpoints
 
-    /// <summary>
-    /// Retrieves all events for the authenticated user
-    /// </summary>
     public async Task<List<EventResponse>> GetAllEventsAsync()
     {
         try
@@ -197,11 +164,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Retrieves a specific event by its ID
-    /// </summary>
-    /// <param name="id">The event ID</param>
-    /// <returns>The event details or null if not found</returns>
     public async Task<EventResponse?> GetEventByIdAsync(int id)
     {
         try
@@ -224,12 +186,6 @@ public class ApiService
         }
     }
 
-    /// <summary>
-    /// Retrieves all events within a specified date range
-    /// </summary>
-    /// <param name="startDate">Start date of the range</param>
-    /// <param name="endDate">End date of the range</param>
-    /// <returns>List of events within the date range</returns>
     public async Task<List<EventResponse>> GetEventsByDateRangeAsync(DateTime startDate, DateTime endDate)
     {
         try
