@@ -129,8 +129,11 @@ public partial class CalendarView : IAsyncDisposable
                 {
                     Logger.LogInformation("CalendarView: Found {Count} pending operations - triggering automatic sync", pendingCount);
                     
-                    // Trigger sync (this will also reload events)
+                    // Trigger sync (this will also reload events and clean up temporary events)
                     await OfflineSyncService.SynchronizePendingOperationsAsync();
+                    
+                    // After sync, reload events to ensure we have the latest server state
+                    await LoadEvents();
                     
                     successMessage = $"Synced {pendingCount} offline changes successfully!";
                 }
@@ -156,6 +159,7 @@ public partial class CalendarView : IAsyncDisposable
             {
                 if (events.Any())
                 {
+                    // Save current events to cache for offline access
                     await OfflineSyncService.LoadEventsAsync(); // This will save to cache
                     Logger.LogInformation("CalendarView: Cached {Count} events for offline use", events.Count);
                 }
