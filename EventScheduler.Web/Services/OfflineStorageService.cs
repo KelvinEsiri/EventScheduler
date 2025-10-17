@@ -5,9 +5,6 @@ using System.Text.Json;
 
 namespace EventScheduler.Web.Services;
 
-/// <summary>
-/// Service for managing offline event storage and pending operations using IndexedDB
-/// </summary>
 public class OfflineStorageService
 {
     private readonly IJSRuntime _jsRuntime;
@@ -16,7 +13,6 @@ public class OfflineStorageService
     private const string EVENTS_STORE = "events";
     private const string PENDING_OPERATIONS_STORE = "pendingOperations";
     
-    // JSON serialization options for camelCase (JavaScript naming convention)
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -163,13 +159,10 @@ public class OfflineStorageService
     }
 }
 
-/// <summary>
-/// Represents an operation that needs to be synchronized when online
-/// </summary>
 public class PendingOperation
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Type { get; set; } = string.Empty; // "create", "update", "delete"
+    public string Type { get; set; } = string.Empty;
     public int? EventId { get; set; }
     public string? EventData { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;

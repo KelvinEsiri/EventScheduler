@@ -1,6 +1,3 @@
-// Offline Storage using IndexedDB for EventScheduler
-// Handles persistent storage for events, pending operations, and conflict tracking
-
 window.offlineStorage = (function() {
     let db = null;
     const DB_VERSION = 2;

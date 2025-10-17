@@ -2,10 +2,6 @@ using Microsoft.JSInterop;
 
 namespace EventScheduler.Web.Services;
 
-/// <summary>
-/// Service for monitoring network connectivity status
-/// Monitors both browser online status and server reachability
-/// </summary>
 public class NetworkStatusService
 {
     private readonly IJSRuntime _jsRuntime;

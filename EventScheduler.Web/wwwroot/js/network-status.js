@@ -1,7 +1,3 @@
-// Network Status Detection for EventScheduler
-// Monitors online/offline status and notifies the Blazor application
-// Handles both browser offline mode AND server connectivity
-
 window.networkStatus = (function() {
     let dotNetRef = null;
     let isServerReachable = true;
