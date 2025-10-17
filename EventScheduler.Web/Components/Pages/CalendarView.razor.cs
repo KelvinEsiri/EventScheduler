@@ -12,6 +12,9 @@ namespace EventScheduler.Web.Components.Pages;
 public partial class CalendarView : IAsyncDisposable
 {
     [Inject] private ApiService ApiService { get; set; } = default!;
+    [Inject] private OfflineEventService OfflineEventService { get; set; } = default!;
+    [Inject] private ConnectivityService ConnectivityService { get; set; } = default!;
+    [Inject] private SyncService SyncService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
@@ -65,6 +68,25 @@ public partial class CalendarView : IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("CalendarView: Initializing component (prerender)");
+        
+        // Initialize connectivity service
+        try
+        {
+            await ConnectivityService.InitializeAsync();
+            isConnected = ConnectivityService.IsOnline;
+            connectionStatus = isConnected ? "Connected" : "Offline";
+            
+            // Subscribe to connectivity changes
+            ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+            
+            // Subscribe to sync events
+            SyncService.SyncStarted += OnSyncStarted;
+            SyncService.SyncCompleted += OnSyncCompleted;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "CalendarView: Failed to initialize connectivity service");
+        }
         
         // Try to check auth, but don't redirect here - wait for OnAfterRenderAsync
         // because during prerendering, localStorage hasn't been read yet
@@ -292,6 +314,70 @@ public partial class CalendarView : IAsyncDisposable
         return Task.CompletedTask;
     }
 
+    // Connectivity change handler
+    private void OnConnectivityChanged(object? sender, bool online)
+    {
+        InvokeAsync(async () =>
+        {
+            isConnected = online;
+            connectionStatus = online ? "Connected" : "Offline";
+            Logger.LogInformation("CalendarView: Connectivity changed - {Status}", connectionStatus);
+            
+            // If coming back online, trigger sync
+            if (online)
+            {
+                try
+                {
+                    var result = await SyncService.SyncAsync();
+                    if (result.Success)
+                    {
+                        Logger.LogInformation("CalendarView: Auto-sync completed - {Events} events synced", result.SyncedEvents);
+                        await LoadEvents(); // Refresh calendar with synced data
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "CalendarView: Auto-sync failed");
+                }
+            }
+            
+            StateHasChanged();
+        });
+    }
+
+    // Sync event handlers
+    private void OnSyncStarted(object? sender, EventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            Logger.LogInformation("CalendarView: Sync started");
+            connectionStatus = "Syncing...";
+            StateHasChanged();
+        });
+    }
+
+    private void OnSyncCompleted(object? sender, SyncResult result)
+    {
+        InvokeAsync(async () =>
+        {
+            Logger.LogInformation("CalendarView: Sync completed - Success: {Success}, Events: {Events}, Operations: {Operations}",
+                result.Success, result.SyncedEvents, result.ProcessedOperations);
+            
+            if (result.Success)
+            {
+                connectionStatus = "Connected";
+                ShowSuccess($"Synced {result.SyncedEvents} events and {result.ProcessedOperations} operations");
+                await LoadEvents(); // Refresh calendar
+            }
+            else
+            {
+                ShowError("Sync failed: " + result.Message);
+            }
+            
+            StateHasChanged();
+        });
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         Logger.LogInformation("CalendarView: OnAfterRenderAsync called - firstRender={FirstRender}, calendarInitialized={CalendarInitialized}, isLoading={IsLoading}", 
@@ -437,9 +523,10 @@ public partial class CalendarView : IAsyncDisposable
             isLoading = true;
             errorMessage = null;
             
-            events = await ApiService.GetAllEventsAsync();
+            // Use OfflineEventService for offline-first loading
+            events = await OfflineEventService.GetEventsAsync();
             
-            Logger.LogInformation("CalendarView: Loaded {Count} events", events.Count);
+            Logger.LogInformation("CalendarView: Loaded {Count} events (offline-first)", events.Count);
             
             if (calendarInitialized)
             {
@@ -462,7 +549,7 @@ public partial class CalendarView : IAsyncDisposable
         catch (Exception ex)
         {
             Logger.LogError(ex, "CalendarView: Failed to load events");
-            ShowError("Failed to load events. Please try again.");
+            ShowError("Failed to load events. " + (ConnectivityService.IsOnline ? "Please try again." : "You're offline - showing cached events."));
         }
         finally
         {
@@ -696,8 +783,8 @@ public partial class CalendarView : IAsyncDisposable
                 allDay
             );
 
-            // Save to server
-            await ApiService.UpdateEventAsync(eventId, updateRequest);
+            // Save to server using offline-first service
+            await OfflineEventService.UpdateEventAsync(eventId, updateRequest);
             
             // Show success with date info
             var dateStr = eventItem.StartDate.ToString("MMM dd, yyyy");
@@ -705,7 +792,7 @@ public partial class CalendarView : IAsyncDisposable
             {
                 dateStr += $" at {eventItem.StartDate:hh:mm tt}";
             }
-            ShowSuccess($"✅ Event moved to {dateStr}");
+            ShowSuccess($"✅ Event moved to {dateStr}" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
             
             Logger.LogInformation("CalendarView: Event {EventId} rescheduled successfully", eventId);
         }
@@ -784,8 +871,8 @@ public partial class CalendarView : IAsyncDisposable
                 newEnd
             );
 
-            // Save to server
-            await ApiService.UpdateEventAsync(eventId, updateRequest);
+            // Save to server using offline-first service
+            await OfflineEventService.UpdateEventAsync(eventId, updateRequest);
             
             // Calculate and show duration
             var duration = eventItem.EndDate - eventItem.StartDate;
@@ -793,7 +880,7 @@ public partial class CalendarView : IAsyncDisposable
                 ? $"{duration.Hours}h {duration.Minutes}m" 
                 : $"{duration.Minutes}m";
             
-            ShowSuccess($"✅ Duration updated to {durationStr}");
+            ShowSuccess($"✅ Duration updated to {durationStr}" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
             
             Logger.LogInformation("CalendarView: Event {EventId} resized successfully", eventId);
         }
@@ -848,8 +935,16 @@ public partial class CalendarView : IAsyncDisposable
                 pendingLocalChanges.Add(editEventId);
                 
                 var updateRequest = CreateUpdateRequest();
-                await ApiService.UpdateEventAsync(editEventId, updateRequest);
-                ShowSuccess("Event updated successfully!");
+                var updatedEvent = await OfflineEventService.UpdateEventAsync(editEventId, updateRequest);
+                
+                if (updatedEvent != null)
+                {
+                    ShowSuccess("Event updated successfully!" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
+                }
+                else
+                {
+                    ShowError("Failed to update event.");
+                }
             }
             else
             {
@@ -861,8 +956,8 @@ public partial class CalendarView : IAsyncDisposable
                     
                     Logger.LogInformation("CalendarView: Creating event locally, SignalR will be suppressed");
                     
-                    // Create the event via API
-                    var createdEvent = await ApiService.CreateEventAsync(eventRequest);
+                    // Create the event via offline-first service
+                    var createdEvent = await OfflineEventService.CreateEventAsync(eventRequest);
                     
                     if (createdEvent != null)
                     {
@@ -870,7 +965,7 @@ public partial class CalendarView : IAsyncDisposable
                         events.Add(createdEvent);
                         await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
                         
-                        ShowSuccess("Event created successfully!");
+                        ShowSuccess("Event created successfully!" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
                         Logger.LogInformation("CalendarView: Event {EventId} created and added locally", createdEvent.Id);
                     }
                 }
@@ -934,10 +1029,21 @@ public partial class CalendarView : IAsyncDisposable
             await JSRuntime.InvokeVoidAsync("removeEventFromCalendar", eventId);
             StateHasChanged(); // Force UI refresh
             
-            // Call API
-            await ApiService.DeleteEventAsync(eventId);
-            ShowSuccess("Event deleted successfully!");
-            CloseDetailsModal();
+            // Call offline-first service
+            var success = await OfflineEventService.DeleteEventAsync(eventId);
+            
+            if (success)
+            {
+                ShowSuccess("Event deleted successfully!" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
+                CloseDetailsModal();
+            }
+            else
+            {
+                ShowError("Failed to delete event.");
+                pendingLocalChanges.Remove(eventId);
+                // Restore events on failure
+                await LoadEvents();
+            }
             
             Logger.LogInformation("CalendarView: Event {EventId} deleted", eventId);
         }
@@ -1127,6 +1233,11 @@ public partial class CalendarView : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Logger.LogInformation("CalendarView: Disposing component");
+        
+        // Unsubscribe from events
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+        SyncService.SyncStarted -= OnSyncStarted;
+        SyncService.SyncCompleted -= OnSyncCompleted;
         
         try
         {
