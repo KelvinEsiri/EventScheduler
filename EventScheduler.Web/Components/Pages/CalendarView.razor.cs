@@ -876,7 +876,7 @@ public partial class CalendarView : IAsyncDisposable
                     else
                     {
                         Logger.LogWarning("CalendarView: Failed to create event offline - received null response");
-                        throw new InvalidOperationException("Failed to create event offline. Please try again.");
+                        throw new InvalidOperationException("Failed to create event offline. The event could not be queued. Please check your browser's storage settings and try again.");
                     }
                 }
                 
