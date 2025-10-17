@@ -71,6 +71,7 @@ public class EventSchedulerDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.EventId);
+            entity.HasIndex(e => e.UserId);
             entity.Property(e => e.InviteeName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.InviteeEmail).IsRequired().HasMaxLength(100);
 
@@ -78,6 +79,11 @@ public class EventSchedulerDbContext : DbContext
                 .WithMany(e => e.Invitations)
                 .HasForeignKey(e => e.EventId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.EventInvitations)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

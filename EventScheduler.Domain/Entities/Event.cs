@@ -31,7 +31,8 @@ public enum EventStatus
     Scheduled,
     InProgress,
     Completed,
-    Cancelled
+    Cancelled,
+    Late
 }
 
 public enum EventType

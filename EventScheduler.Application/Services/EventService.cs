@@ -255,6 +255,99 @@ public class EventService : IEventService
         return eventEntity == null ? null : MapToResponse(eventEntity);
     }
 
+    public async Task<EventResponse> JoinPublicEventAsync(int userId, int eventId)
+    {
+        _logger.LogInformation("User {UserId} attempting to join event {EventId}", userId, eventId);
+        
+        var eventEntity = await _eventRepository.GetPublicEventByIdAsync(eventId);
+        
+        if (eventEntity == null || !eventEntity.IsPublic)
+        {
+            _logger.LogWarning("Event {EventId} not found or not public", eventId);
+            throw new InvalidOperationException("Event not found or is not public");
+        }
+
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User {UserId} not found", userId);
+            throw new InvalidOperationException("User not found");
+        }
+
+        // Check if user already joined
+        var existingInvitation = eventEntity.Invitations.FirstOrDefault(i => i.UserId == userId);
+        if (existingInvitation != null)
+        {
+            _logger.LogInformation("User {UserId} already joined event {EventId}", userId, eventId);
+            return MapToResponse(eventEntity);
+        }
+
+        // Add user as participant
+        var invitation = new EventInvitation
+        {
+            EventId = eventId,
+            InviteeName = user.FullName,
+            InviteeEmail = user.Email,
+            UserId = userId,
+            InvitedAt = DateTime.UtcNow
+        };
+        
+        eventEntity.Invitations.Add(invitation);
+        await _eventRepository.UpdateAsync(eventEntity);
+        
+        _logger.LogInformation("User {UserId} successfully joined event {EventId}", userId, eventId);
+        
+        return MapToResponse(eventEntity);
+    }
+
+    public async Task LeaveEventAsync(int userId, int eventId)
+    {
+        _logger.LogInformation("User {UserId} attempting to leave event {EventId}", userId, eventId);
+        
+        var eventEntity = await _eventRepository.GetPublicEventByIdAsync(eventId);
+        
+        if (eventEntity == null || !eventEntity.IsPublic)
+        {
+            _logger.LogWarning("Event {EventId} not found or not public", eventId);
+            throw new InvalidOperationException("Event not found or is not public");
+        }
+
+        var invitation = eventEntity.Invitations.FirstOrDefault(i => i.UserId == userId);
+        if (invitation != null)
+        {
+            eventEntity.Invitations.Remove(invitation);
+            await _eventRepository.UpdateAsync(eventEntity);
+            _logger.LogInformation("User {UserId} successfully left event {EventId}", userId, eventId);
+        }
+        else
+        {
+            _logger.LogInformation("User {UserId} was not a participant of event {EventId}", userId, eventId);
+        }
+    }
+
+    public async Task UpdateEventStatusesAsync()
+    {
+        _logger.LogInformation("Updating event statuses based on dates");
+        
+        var now = DateTime.UtcNow;
+        var allUsers = await _userRepository.GetAllAsync();
+        
+        foreach (var user in allUsers)
+        {
+            var userEvents = await _eventRepository.GetAllAsync(user.Id);
+            
+            foreach (var eventEntity in userEvents)
+            {
+                if (eventEntity.Status == EventStatus.Scheduled && eventEntity.EndDate < now)
+                {
+                    eventEntity.Status = EventStatus.Late;
+                    await _eventRepository.UpdateAsync(eventEntity);
+                    _logger.LogInformation("Event {EventId} marked as Late", eventEntity.Id);
+                }
+            }
+        }
+    }
+
     private EventResponse MapToResponse(Event eventEntity)
     {
         return new EventResponse
@@ -279,10 +372,12 @@ public class EventService : IEventService
                 Id = i.Id,
                 InviteeName = i.InviteeName,
                 InviteeEmail = i.InviteeEmail,
-                InvitedAt = i.InvitedAt
+                InvitedAt = i.InvitedAt,
+                UserId = i.UserId
             }).ToList(),
             CreatedAt = eventEntity.CreatedAt,
-            UpdatedAt = eventEntity.UpdatedAt
+            UpdatedAt = eventEntity.UpdatedAt,
+            IsJoined = false
         };
     }
 }

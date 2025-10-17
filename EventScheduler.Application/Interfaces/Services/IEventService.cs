@@ -13,4 +13,7 @@ public interface IEventService
     Task<IEnumerable<EventResponse>> GetEventsByDateRangeAsync(int userId, DateTime startDate, DateTime endDate);
     Task<IEnumerable<EventResponse>> GetPublicEventsAsync();
     Task<EventResponse?> GetPublicEventByIdAsync(int eventId);
+    Task<EventResponse> JoinPublicEventAsync(int userId, int eventId);
+    Task LeaveEventAsync(int userId, int eventId);
+    Task UpdateEventStatusesAsync();
 }

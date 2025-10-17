@@ -22,6 +22,7 @@ public class EventResponse
     public List<EventInvitationResponse>? Invitations { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public bool IsJoined { get; set; }
 }
 
 public class EventInvitationResponse
@@ -30,4 +31,5 @@ public class EventInvitationResponse
     public string InviteeName { get; set; } = string.Empty;
     public string InviteeEmail { get; set; } = string.Empty;
     public DateTime InvitedAt { get; set; }
+    public int? UserId { get; set; }
 }
