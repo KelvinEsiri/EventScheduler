@@ -145,6 +145,21 @@ public class EventService : IEventService
         eventEntity.IsPublic = request.IsPublic;
         eventEntity.UpdatedAt = DateTime.UtcNow;
 
+        // Auto-update status based on date changes
+        var now = DateTime.UtcNow;
+        if (eventEntity.Status == EventStatus.Late && request.EndDate > now)
+        {
+            // If rescheduled to future date, revert from Late to Scheduled
+            eventEntity.Status = EventStatus.Scheduled;
+            _logger.LogInformation("Event {EventId} rescheduled to future, status changed from Late to Scheduled", eventId);
+        }
+        else if (eventEntity.Status == EventStatus.Scheduled && request.EndDate < now)
+        {
+            // If scheduled event is moved to past, mark as Late
+            eventEntity.Status = EventStatus.Late;
+            _logger.LogInformation("Event {EventId} rescheduled to past, status changed from Scheduled to Late", eventId);
+        }
+
         if (!string.IsNullOrEmpty(request.Status) && Enum.TryParse<EventStatus>(request.Status, out var status))
         {
             var oldStatus = eventEntity.Status;
@@ -228,6 +243,28 @@ public class EventService : IEventService
     {
         _logger.LogDebug("Getting all events for user {UserId}", userId);
         var events = await _eventRepository.GetAllAsync(userId);
+        
+        // Update late events automatically
+        var now = DateTime.UtcNow;
+        var hasChanges = false;
+        
+        foreach (var eventEntity in events)
+        {
+            if (eventEntity.Status == EventStatus.Scheduled && eventEntity.EndDate < now)
+            {
+                eventEntity.Status = EventStatus.Late;
+                await _eventRepository.UpdateAsync(eventEntity);
+                hasChanges = true;
+                _logger.LogInformation("Event {EventId} automatically marked as Late", eventEntity.Id);
+            }
+        }
+        
+        // Reload if there were changes
+        if (hasChanges)
+        {
+            events = await _eventRepository.GetAllAsync(userId);
+        }
+        
         _logger.LogInformation("Retrieved {Count} events for user {UserId}", events.Count(), userId);
         return events.Select(MapToResponse);
     }

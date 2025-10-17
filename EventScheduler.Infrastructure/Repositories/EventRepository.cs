@@ -24,22 +24,13 @@ public class EventRepository : IEventRepository
 
     public async Task<IEnumerable<Event>> GetAllAsync(int userId)
     {
-        // Get both owned events and events the user has joined
-        var ownedEvents = await _context.Events
+        // Get both owned events and events the user has joined in a single query
+        return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
-            .Where(e => e.UserId == userId)
-            .ToListAsync();
-            
-        var joinedEvents = await _context.Events
-            .Include(e => e.Category)
-            .Include(e => e.Invitations)
-            .Where(e => e.Invitations.Any(i => i.UserId == userId) && e.UserId != userId)
-            .ToListAsync();
-            
-        return ownedEvents.Concat(joinedEvents)
+            .Where(e => e.UserId == userId || e.Invitations.Any(i => i.UserId == userId))
             .OrderBy(e => e.StartDate)
-            .ToList();
+            .ToListAsync();
     }
 
     public async Task<IEnumerable<Event>> GetByDateRangeAsync(int userId, DateTime startDate, DateTime endDate)
@@ -47,7 +38,7 @@ public class EventRepository : IEventRepository
         return await _context.Events
             .Include(e => e.Category)
             .Include(e => e.Invitations)
-            .Where(e => e.UserId == userId &&
+            .Where(e => (e.UserId == userId || e.Invitations.Any(i => i.UserId == userId)) &&
                        e.StartDate >= startDate &&
                        e.StartDate <= endDate)
             .OrderBy(e => e.StartDate)
