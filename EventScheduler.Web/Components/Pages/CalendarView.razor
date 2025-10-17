@@ -464,6 +464,17 @@
     </div>
 }
 
+<!-- Toast Notifications -->
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <ToastNotification title="Success" message="@successMessage" type="ToastNotification.ToastType.Success" OnClose="@(() => successMessage = null)" />
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <ToastNotification title="Error" message="@errorMessage" type="ToastNotification.ToastType.Error" OnClose="@(() => errorMessage = null)" />
+}
+
 @code {
     // State management
     private List<EventResponse> events = new();
