@@ -11,4 +11,5 @@ public interface IUserRepository
     Task<User> CreateAsync(User user);
     Task UpdateAsync(User user);
     Task<bool> ExistsAsync(string username, string email);
+    Task<IEnumerable<User>> GetAllAsync();
 }

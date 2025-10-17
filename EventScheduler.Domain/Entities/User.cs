@@ -16,4 +16,5 @@ public class User
     // Navigation properties
     public ICollection<Event> Events { get; set; } = new List<Event>();
     public ICollection<EventCategory> EventCategories { get; set; } = new List<EventCategory>();
+    public ICollection<EventInvitation> EventInvitations { get; set; } = new List<EventInvitation>();
 }

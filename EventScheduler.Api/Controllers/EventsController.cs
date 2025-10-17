@@ -225,4 +225,58 @@ public class EventsController : ControllerBase
             return StatusCode(500, new { error = "An error occurred while retrieving the public event" });
         }
     }
+
+    [HttpPost("public/{id}/join")]
+    public async Task<IActionResult> JoinPublicEvent(int id)
+    {
+        try
+        {
+            var userId = GetUserId();
+            var eventData = await _eventService.JoinPublicEventAsync(userId, id);
+            _logger.LogInformation("User {UserId} joined public event {EventId}", userId, id);
+            
+            return Ok(eventData);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Error joining public event {EventId}", id);
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining public event {EventId}", id);
+            return StatusCode(500, new { error = "An error occurred while joining the event" });
+        }
+    }
+
+    [HttpPost("public/{id}/leave")]
+    public async Task<IActionResult> LeaveEvent(int id)
+    {
+        try
+        {
+            var userId = GetUserId();
+            await _eventService.LeaveEventAsync(userId, id);
+            _logger.LogInformation("User {UserId} left event {EventId}", userId, id);
+            
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Error leaving event {EventId}", id);
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error leaving event {EventId}", id);
+            return StatusCode(500, new { error = "An error occurred while leaving the event" });
+        }
+    }
 }

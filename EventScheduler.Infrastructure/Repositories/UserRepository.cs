@@ -55,4 +55,9 @@ public class UserRepository : IUserRepository
         return await _context.Users
             .AnyAsync(u => u.Username == username || u.Email == email);
     }
+
+    public async Task<IEnumerable<User>> GetAllAsync()
+    {
+        return await _context.Users.ToListAsync();
+    }
 }
