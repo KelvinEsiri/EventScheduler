@@ -320,11 +320,16 @@
     </div>
 }
 
-<!-- Connection Status Indicator -->
-<ConnectionStatusIndicator 
-    IsOnline="@isOnline" 
-    IsSyncing="false" 
-    PendingCount="0" 
-    IsVisible="true" />
+<!-- Connection Status Indicator (simplified for public events) -->
+@if (!isOnline)
+{
+    <div class="connection-status-corner offline">
+        <i class="bi bi-wifi-off connection-icon offline"></i>
+        <div class="connection-details">
+            <p class="connection-status-text offline">Offline</p>
+            <p class="pending-count-text">Public events require connection</p>
+        </div>
+    </div>
+}
 
 
