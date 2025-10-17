@@ -12,6 +12,8 @@ namespace EventScheduler.Web.Components.Pages;
 public partial class CalendarView : IAsyncDisposable
 {
     [Inject] private ApiService ApiService { get; set; } = default!;
+    [Inject] private OfflineSyncService OfflineSyncService { get; set; } = default!;
+    [Inject] private NetworkStatusService NetworkStatusService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
@@ -27,6 +29,7 @@ public partial class CalendarView : IAsyncDisposable
     private string? errorMessage;
     private string? successMessage;
     private int currentUserId = 0;
+    private bool isOnline = true; // Track online/offline status
     
     private HubConnection? hubConnection;
     private bool isConnected = false;
@@ -59,6 +62,11 @@ public partial class CalendarView : IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("CalendarView: Initializing component (prerender)");
+        
+        // Initialize offline sync service
+        await OfflineSyncService.InitializeAsync();
+        isOnline = NetworkStatusService.IsOnline;
+        NetworkStatusService.OnStatusChanged += HandleNetworkStatusChange;
         
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
@@ -96,6 +104,23 @@ public partial class CalendarView : IAsyncDisposable
         {
             Logger.LogInformation("CalendarView: Auth not yet loaded, will check in OnAfterRenderAsync");
         }
+    }
+    
+    private async Task HandleNetworkStatusChange(bool online)
+    {
+        isOnline = online;
+        Logger.LogInformation("CalendarView: Network status changed to {Status}", online ? "Online" : "Offline");
+        
+        if (online)
+        {
+            connectionStatus = "Back online - synchronizing...";
+        }
+        else
+        {
+            connectionStatus = "Working offline";
+        }
+        
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task InitializeSignalR()
@@ -399,7 +424,8 @@ public partial class CalendarView : IAsyncDisposable
             isLoading = true;
             errorMessage = null;
             
-            events = await ApiService.GetAllEventsAsync();
+            // Use OfflineSyncService which handles online/offline automatically
+            events = await OfflineSyncService.LoadEventsAsync();
             
             Logger.LogInformation("CalendarView: Loaded {Count} events", events.Count);
             
@@ -651,8 +677,15 @@ public partial class CalendarView : IAsyncDisposable
                 allDay
             );
 
-            // Save to server
-            await ApiService.UpdateEventAsync(eventId, updateRequest);
+            // Save to server or queue for offline
+            if (isOnline)
+            {
+                await ApiService.UpdateEventAsync(eventId, updateRequest);
+            }
+            else
+            {
+                await OfflineSyncService.UpdateEventOfflineAsync(eventId, updateRequest);
+            }
             
             // Show success with date info
             var dateStr = eventItem.StartDate.ToString("MMM dd, yyyy");
@@ -660,7 +693,7 @@ public partial class CalendarView : IAsyncDisposable
             {
                 dateStr += $" at {eventItem.StartDate:hh:mm tt}";
             }
-            ShowSuccess($"✅ Event moved to {dateStr}");
+            ShowSuccess(isOnline ? $"✅ Event moved to {dateStr}" : $"✅ Event moved to {dateStr} (offline - will sync)");
             
             Logger.LogInformation("CalendarView: Event {EventId} rescheduled successfully", eventId);
         }
@@ -739,8 +772,15 @@ public partial class CalendarView : IAsyncDisposable
                 newEnd
             );
 
-            // Save to server
-            await ApiService.UpdateEventAsync(eventId, updateRequest);
+            // Save to server or queue for offline
+            if (isOnline)
+            {
+                await ApiService.UpdateEventAsync(eventId, updateRequest);
+            }
+            else
+            {
+                await OfflineSyncService.UpdateEventOfflineAsync(eventId, updateRequest);
+            }
             
             // Calculate and show duration
             var duration = eventItem.EndDate - eventItem.StartDate;
@@ -748,7 +788,7 @@ public partial class CalendarView : IAsyncDisposable
                 ? $"{duration.Hours}h {duration.Minutes}m" 
                 : $"{duration.Minutes}m";
             
-            ShowSuccess($"✅ Duration updated to {durationStr}");
+            ShowSuccess(isOnline ? $"✅ Duration updated to {durationStr}" : $"✅ Duration updated to {durationStr} (offline - will sync)");
             
             Logger.LogInformation("CalendarView: Event {EventId} resized successfully", eventId);
         }
@@ -803,14 +843,44 @@ public partial class CalendarView : IAsyncDisposable
                 pendingLocalChanges.Add(editEventId);
                 
                 var updateRequest = CreateUpdateRequest();
-                await ApiService.UpdateEventAsync(editEventId, updateRequest);
-                ShowSuccess("Event updated successfully!");
+                
+                if (isOnline)
+                {
+                    await ApiService.UpdateEventAsync(editEventId, updateRequest);
+                }
+                else
+                {
+                    await OfflineSyncService.UpdateEventOfflineAsync(editEventId, updateRequest);
+                    // Update local events list for offline mode
+                    await LoadEvents();
+                }
+                
+                ShowSuccess(isOnline ? "Event updated successfully!" : "Event updated offline - will sync when online");
             }
             else
             {
                 lastLocalOperationTime = DateTime.UtcNow;
-                await ApiService.CreateEventAsync(eventRequest);
-                ShowSuccess("Event created successfully!");
+                
+                if (isOnline)
+                {
+                    await ApiService.CreateEventAsync(eventRequest);
+                }
+                else
+                {
+                    var createdEvent = await OfflineSyncService.CreateEventOfflineAsync(eventRequest);
+                    if (createdEvent != null)
+                    {
+                        events.Add(createdEvent);
+                        await JSRuntime.InvokeVoidAsync("addEventToCalendar", createdEvent);
+                    }
+                    else
+                    {
+                        Logger.LogWarning("CalendarView: Failed to create event offline - received null response");
+                        throw new InvalidOperationException("Failed to create event offline. The event could not be queued. Please check your browser's storage settings and try again.");
+                    }
+                }
+                
+                ShowSuccess(isOnline ? "Event created successfully!" : "Event created offline - will sync when online");
             }
 
             CloseModal();
@@ -863,9 +933,17 @@ public partial class CalendarView : IAsyncDisposable
             await JSRuntime.InvokeVoidAsync("removeEventFromCalendar", eventId);
             StateHasChanged(); // Force UI refresh
             
-            // Call API
-            await ApiService.DeleteEventAsync(eventId);
-            ShowSuccess("Event deleted successfully!");
+            // Call API or queue for offline
+            if (isOnline)
+            {
+                await ApiService.DeleteEventAsync(eventId);
+            }
+            else
+            {
+                await OfflineSyncService.DeleteEventOfflineAsync(eventId);
+            }
+            
+            ShowSuccess(isOnline ? "Event deleted successfully!" : "Event deleted offline - will sync when online");
             CloseDetailsModal();
             
             Logger.LogInformation("CalendarView: Event {EventId} deleted", eventId);
@@ -1056,6 +1134,9 @@ public partial class CalendarView : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Logger.LogInformation("CalendarView: Disposing component");
+        
+        // Unsubscribe from network status changes
+        NetworkStatusService.OnStatusChanged -= HandleNetworkStatusChange;
         
         try
         {

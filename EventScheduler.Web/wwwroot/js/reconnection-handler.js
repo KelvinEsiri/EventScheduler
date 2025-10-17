@@ -28,11 +28,33 @@ setTimeout(() => {
     let checkServerInterval;
     
     handler.onConnectionDown = function() {
-        console.log('🔴 [SignalR] Connection lost - starting active polling');
+        console.log('🔴 [SignalR] Connection lost - checking if offline mode active');
+        
+        // Check if we're in offline mode (no network connectivity)
+        const isOffline = !navigator.onLine;
+        
+        if (isOffline) {
+            console.log('📴 [SignalR] User is offline - skipping reconnection UI');
+            // Don't show reconnection modal when user is intentionally offline
+            // The app should continue to work in offline mode
+            if (origDown) origDown.call(handler);
+            return;
+        }
+        
+        console.log('🔴 [SignalR] Connection lost (online) - starting active polling');
         modal.className = 'components-reconnect-show';
         
         checkServerInterval = setInterval(async () => {
             console.log('📡 [SignalR] Polling server...');
+            
+            // Check if user went offline while trying to reconnect
+            if (!navigator.onLine) {
+                console.log('📴 [SignalR] User went offline - stopping reconnection attempts');
+                clearInterval(checkServerInterval);
+                modal.className = 'components-reconnect-hide';
+                return;
+            }
+            
             try {
                 const response = await fetch('/');
                 if (response.ok) {
