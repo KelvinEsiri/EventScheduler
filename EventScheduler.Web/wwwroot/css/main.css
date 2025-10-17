@@ -37,6 +37,7 @@
 @import url('./components/connection-indicator.css');
 @import url('./components/loading-spinner.css');
 @import url('./components/blazor-error-ui.css');
+@import url('./offline-indicator.css');
 
 /* ===================================
    Page-Specific Styles
