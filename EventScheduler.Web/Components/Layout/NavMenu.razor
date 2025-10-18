@@ -12,29 +12,61 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
+        <!-- Home - Disabled when offline -->
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill" aria-hidden="true"></span> Home
-            </NavLink>
+            @if (isOnline)
+            {
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="bi bi-house-door-fill" aria-hidden="true"></span> Home
+                </NavLink>
+            }
+            else
+            {
+                <a class="nav-link nav-link-disabled" title="Available only when online">
+                    <span class="bi bi-house-door-fill" aria-hidden="true"></span> Home
+                    <span class="offline-badge"><i class="bi bi-wifi-off"></i></span>
+                </a>
+            }
         </div>
 
+        <!-- Public Events - Disabled when offline -->
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="public-events">
-                <span class="bi bi-globe" aria-hidden="true"></span> Public Events
-            </NavLink>
+            @if (isOnline)
+            {
+                <NavLink class="nav-link" href="public-events">
+                    <span class="bi bi-globe" aria-hidden="true"></span> Public Events
+                </NavLink>
+            }
+            else
+            {
+                <a class="nav-link nav-link-disabled" title="Available only when online">
+                    <span class="bi bi-globe" aria-hidden="true"></span> Public Events
+                    <span class="offline-badge"><i class="bi bi-wifi-off"></i></span>
+                </a>
+            }
         </div>
 
         <AuthorizeView>
             <Authorized>
+                <!-- Calendar View - Always enabled (offline support) -->
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="calendar-view">
                         <span class="bi bi-calendar3" aria-hidden="true"></span> Calendar
+                        @if (!isOnline)
+                        {
+                            <span class="online-badge" title="Available offline"><i class="bi bi-check-circle-fill"></i></span>
+                        }
                     </NavLink>
                 </div>
 
+                <!-- Event List - Always enabled (offline support) -->
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="calendar-list">
                         <span class="bi bi-list-ul" aria-hidden="true"></span> Event List
+                        @if (!isOnline)
+                        {
+                            <span class="online-badge" title="Available offline"><i class="bi bi-check-circle-fill"></i></span>
+                        }
                     </NavLink>
                 </div>
 
@@ -47,29 +79,63 @@
                         </div>
                         <div class="nav-user-details">
                             <div class="nav-user-name">@context.User.Identity?.Name</div>
-                            <div class="nav-user-status">Online</div>
+                            <div class="nav-user-status">@(isOnline ? "Online" : "Offline")</div>
                         </div>
                     </div>
+                    
+                    <!-- Logout - Disabled when offline -->
                     <div class="nav-item px-3">
-                        <a class="nav-link nav-link-logout" href="/logout">
-                            <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
-                        </a>
+                        @if (isOnline)
+                        {
+                            <a class="nav-link nav-link-logout" href="/logout">
+                                <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
+                            </a>
+                        }
+                        else
+                        {
+                            <a class="nav-link nav-link-disabled" title="Available only when online">
+                                <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
+                                <span class="offline-badge"><i class="bi bi-wifi-off"></i></span>
+                            </a>
+                        }
                     </div>
                 </div>
             </Authorized>
             <NotAuthorized>
                 <div class="nav-section-divider"></div>
                 
+                <!-- Login - Disabled when offline -->
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link nav-link-login" href="login">
-                        <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
-                    </NavLink>
+                    @if (isOnline)
+                    {
+                        <NavLink class="nav-link nav-link-login" href="login">
+                            <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
+                        </NavLink>
+                    }
+                    else
+                    {
+                        <a class="nav-link nav-link-disabled" title="Available only when online">
+                            <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
+                            <span class="offline-badge"><i class="bi bi-wifi-off"></i></span>
+                        </a>
+                    }
                 </div>
 
+                <!-- Register - Disabled when offline -->
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link nav-link-register" href="register">
-                        <span class="bi bi-person-plus" aria-hidden="true"></span> Register
-                    </NavLink>
+                    @if (isOnline)
+                    {
+                        <NavLink class="nav-link nav-link-register" href="register">
+                            <span class="bi bi-person-plus" aria-hidden="true"></span> Register
+                        </NavLink>
+                    }
+                    else
+                    {
+                        <a class="nav-link nav-link-disabled" title="Available only when online">
+                            <span class="bi bi-person-plus" aria-hidden="true"></span> Register
+                            <span class="offline-badge"><i class="bi bi-wifi-off"></i></span>
+                        </a>
+                    }
                 </div>
             </NotAuthorized>
         </AuthorizeView>
