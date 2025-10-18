@@ -72,8 +72,8 @@
                     <div class="spinner"></div>
                 </div>
                 <div class="loading-text">
-                    <h3>Loading Public Events</h3>
-                    <p>Getting events ready for you...</p>
+                    <h3>@(isConnected ? "Loading Public Events" : "Attempting to reconnect to the server...")</h3>
+                    <p>@(isConnected ? "Getting events ready for you..." : "Please wait while we restore your connection")</p>
                 </div>
             </div>
         }
