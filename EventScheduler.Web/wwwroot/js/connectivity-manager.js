@@ -35,6 +35,12 @@ window.connectivityManager = (function () {
         isOnline = true;
         reconnectAttempts = 0;
 
+        // Notify FullCalendar that we're back online
+        if (window.fullCalendarInterop) {
+            window.fullCalendarInterop.isBlazorConnected = true;
+            console.log('[Connectivity] 📅 FullCalendar switched to online mode');
+        }
+
         // Notify Blazor component
         if (dotNetHelper) {
             dotNetHelper.invokeMethodAsync('OnConnectivityChanged', true);
@@ -48,6 +54,12 @@ window.connectivityManager = (function () {
     function handleOffline() {
         console.log('[Connectivity] 🔴 Connection lost');
         isOnline = false;
+
+        // Notify FullCalendar to switch to offline mode immediately
+        if (window.fullCalendarInterop) {
+            window.fullCalendarInterop.isBlazorConnected = false;
+            console.log('[Connectivity] 📅 FullCalendar switched to offline mode');
+        }
 
         // Notify Blazor component
         if (dotNetHelper) {
@@ -154,7 +166,10 @@ window.connectivityManager = (function () {
         getStatus,
         forceCheck,
         dispose,
-        triggerSync
+        triggerSync,
+        get isOnline() {
+            return isOnline;
+        }
     };
 })();
 

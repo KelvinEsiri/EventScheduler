@@ -1,7 +1,7 @@
 // EventScheduler Service Worker - Offline Support
 // Implements caching strategies for offline functionality
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2'; // Updated for API URL fix
 const CACHE_NAME = `eventscheduler-cache-${CACHE_VERSION}`;
 
 // Resources to cache immediately on install
@@ -194,6 +194,10 @@ function removePendingOperation(db, id) {
 async function processSyncOperation(operation) {
     const { type, endpoint, data } = operation;
     
+    // Build full API URL - endpoint already contains /api/events/...
+    const apiBaseUrl = 'http://localhost:5006';
+    const fullUrl = endpoint.startsWith('http') ? endpoint : `${apiBaseUrl}${endpoint}`;
+    
     const options = {
         method: type,
         headers: {
@@ -206,7 +210,8 @@ async function processSyncOperation(operation) {
         options.body = JSON.stringify(data);
     }
     
-    const response = await fetch(endpoint, options);
+    console.log(`[Service Worker] Syncing ${type} ${fullUrl}`);
+    const response = await fetch(fullUrl, options);
     
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

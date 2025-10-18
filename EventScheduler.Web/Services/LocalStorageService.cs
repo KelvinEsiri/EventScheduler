@@ -44,12 +44,14 @@ public class LocalStorageService
     {
         try
         {
-            var result = await _jsRuntime.InvokeAsync<JsonElement>(
-                "indexedDBManager.saveEvent", eventData);
+            // Just save the event, don't try to deserialize the result
+            // The JavaScript returns the event with metadata that may cause deserialization issues
+            await _jsRuntime.InvokeVoidAsync("indexedDBManager.saveEvent", eventData);
             
-            var savedEvent = JsonSerializer.Deserialize<EventResponse>(result.GetRawText());
             _logger.LogInformation("Event saved to local storage: {EventId}", eventData.Id);
-            return savedEvent;
+            
+            // Return the original event data since we know it's valid
+            return eventData;
         }
         catch (Exception ex)
         {
@@ -166,9 +168,14 @@ public class LocalStorageService
             _logger.LogInformation("Retrieved {Count} pending operations", operations.Count);
             return operations;
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("statically rendered"))
+        {
+            _logger.LogWarning("Cannot get pending operations during prerendering - returning empty list");
+            return new List<PendingOperation>();
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get pending operations");
+            _logger.LogWarning(ex, "Failed to get pending operations - returning empty list");
             return new List<PendingOperation>();
         }
     }

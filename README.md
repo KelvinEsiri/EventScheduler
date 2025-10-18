@@ -8,6 +8,8 @@ A modern event scheduling application built with .NET 9.0 and Blazor Server, fol
 - ✅ **Event Management** - Create, edit, delete, and view events
 - ✅ **Public Events** - Share events publicly and allow users to join as participants
 - ✅ **Interactive Calendar** - FullCalendar.js with drag-and-drop, resize, and multiple views
+- ✅ **Full Offline Support** - Progressive Web App (PWA) with offline event management and automatic sync
+- ✅ **Real-time Updates** - SignalR for instant event synchronization across users
 - ✅ **Calendar Views** - Month, Week, Day, and List views
 - ✅ **Event Status** - Track events (Scheduled, InProgress, Completed, Cancelled, Late)
 - ✅ **History Tab** - Separate view for completed and cancelled events
@@ -24,6 +26,8 @@ A modern event scheduling application built with .NET 9.0 and Blazor Server, fol
 - **Database**: SQL Server (LocalDB for development)
 - **ORM**: Entity Framework Core 9.0
 - **Authentication**: JWT Bearer tokens
+- **Real-time**: SignalR for live updates
+- **Offline**: Progressive Web App (PWA) with IndexedDB and Service Worker
 - **Logging**: Serilog 9.0 (Console + File sinks)
 - **Calendar**: FullCalendar.js v6.1.10
 - **UI**: Bootstrap 5, Bootstrap Icons 1.11.0
@@ -199,12 +203,18 @@ dotnet ef database update --startup-project ../EventScheduler.Api
 
 # Drop database
 dotnet ef database drop --force --startup-project ../EventScheduler.Api
-```
-
 ## Documentation
 
+📚 **[Complete Documentation Index](DOCUMENTATION_INDEX.md)** - Full documentation guide
+
+### Quick Links
+- **[Offline Mode Guide](OFFLINE_MODE_COMPREHENSIVE_GUIDE.md)** ⭐ - Complete offline implementation
+- **[Offline Quick Reference](OFFLINE_MODE_QUICK_REFERENCE.md)** - Developer quick reference
+- **[Offline Troubleshooting](OFFLINE_MODE_TROUBLESHOOTING.md)** - Fix common issues
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database Setup](docs/DATABASE_SETUP.md) - Database configuration and migrations
+- [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
+- [Calendar Quick Reference](CALENDARVIEW_QUICK_REFERENCE.md) - Calendar component guide
 - [Logging Guide](docs/LOGGING_GUIDE.md) - Comprehensive logging and troubleshooting
 - [Serilog Implementation](SERILOG_LOGGING_IMPLEMENTATION.md) - Serilog setup and configuration
 

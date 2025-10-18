@@ -3,6 +3,42 @@ window.fullCalendarInterop = {
     calendars: {},  // Multiple calendars by elementId
     dotNetHelpers: {},  // Store dotNetHelper per calendar
     eventChangeCache: {},
+    isBlazorConnected: true,  // Track Blazor circuit state
+
+    // Check if Blazor circuit is connected
+    checkBlazorConnection: function() {
+        // First check browser's native online status
+        if (!navigator.onLine) {
+            console.log('🔌 Browser reports offline');
+            this.isBlazorConnected = false;
+            return false;
+        }
+        
+        // Check connectivity manager if available (more accurate)
+        if (window.connectivityManager) {
+            const managerOnline = window.connectivityManager.isOnline;
+            if (!managerOnline) {
+                console.log('🔌 Connectivity manager reports offline');
+                this.isBlazorConnected = false;
+                return false;
+            }
+        }
+        
+        // Check if Blazor is available and has an active circuit
+        if (!window.Blazor) {
+            this.isBlazorConnected = false;
+            return false;
+        }
+        
+        // All checks passed - we're online and Blazor should be connected
+        // If isBlazorConnected was previously false, restore it to true
+        if (!this.isBlazorConnected && navigator.onLine) {
+            console.log('🔌 Connection restored - re-enabling Blazor calls');
+            this.isBlazorConnected = true;
+        }
+        
+        return this.isBlazorConnected;
+    },
 
     initialize: function (elementId, dotNetHelper, events, editable) {
         console.log(`[${elementId}] Initializing FullCalendar with ${events.length} events`);
@@ -76,15 +112,80 @@ window.fullCalendarInterop = {
             eventClick: (info) => {
                 info.jsEvent.preventDefault();
                 const eventId = parseInt(info.event.id);
-                this.invokeDotNet(elementId, 'OnEventClick', eventId);
+                
+                // Check if we're offline
+                if (!this.checkBlazorConnection()) {
+                    console.log('⚠️ Offline mode - showing cached event info');
+                    const title = info.event.title;
+                    const start = info.event.start;
+                    const end = info.event.end;
+                    const desc = info.event.extendedProps?.description || 'No description';
+                    const location = info.event.extendedProps?.location || 'No location';
+                    alert(`${title}\n\n${desc}\n\nLocation: ${location}\nStarts: ${start ? start.toLocaleString() : 'N/A'}\nEnds: ${end ? end.toLocaleString() : 'N/A'}\n\n⚠️ You're offline - full details and editing available when online`);
+                    return;
+                }
+                
+                // Try to call Blazor with timeout
+                const clickPromise = this.invokeDotNet(elementId, 'OnEventClick', eventId);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Click timeout - offline')), 500)
+                );
+                
+                Promise.race([clickPromise, timeoutPromise])
+                    .catch(err => {
+                        console.log('⚠️ Event click failed - showing cached info');
+                        this.isBlazorConnected = false;
+                        const title = info.event.title;
+                        const start = info.event.start;
+                        const end = info.event.end;
+                        const desc = info.event.extendedProps?.description || 'No description';
+                        const location = info.event.extendedProps?.location || 'No location';
+                        alert(`${title}\n\n${desc}\n\nLocation: ${location}\nStarts: ${start ? start.toLocaleString() : 'N/A'}\nEnds: ${end ? end.toLocaleString() : 'N/A'}\n\n⚠️ You're offline - full details and editing available when online`);
+                    });
             },
             
             select: (info) => {
-                this.invokeDotNet(elementId, 'OnDateSelect', info.startStr, info.endStr, info.allDay);
+                // Check if we're offline
+                if (!this.checkBlazorConnection()) {
+                    console.log('⚠️ Offline mode - date selection disabled');
+                    alert('⚠️ You\'re offline\n\nCreating new events is only available when online.\n\nYou can still drag/resize existing events - they will sync when you\'re back online.');
+                    return;
+                }
+                
+                // Try to call Blazor with timeout
+                const selectPromise = this.invokeDotNet(elementId, 'OnDateSelect', info.startStr, info.endStr, info.allDay);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Select timeout - offline')), 500)
+                );
+                
+                Promise.race([selectPromise, timeoutPromise])
+                    .catch(err => {
+                        console.log('⚠️ Date select failed - offline mode');
+                        this.isBlazorConnected = false;
+                        alert('⚠️ You\'re offline\n\nCreating new events is only available when online.\n\nYou can still drag/resize existing events - they will sync when you\'re back online.');
+                    });
             },
             
             dateClick: (info) => {
-                this.invokeDotNet(elementId, 'OnDateClick', info.dateStr);
+                // Check if we're offline
+                if (!this.checkBlazorConnection()) {
+                    console.log('⚠️ Offline mode - date click disabled');
+                    alert('⚠️ You\'re offline\n\nCreating new events is only available when online.\n\nYou can still drag/resize existing events - they will sync when you\'re back online.');
+                    return;
+                }
+                
+                // Try to call Blazor with timeout
+                const clickPromise = this.invokeDotNet(elementId, 'OnDateClick', info.dateStr);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Date click timeout - offline')), 500)
+                );
+                
+                Promise.race([clickPromise, timeoutPromise])
+                    .catch(err => {
+                        console.log('⚠️ Date click failed - offline mode');
+                        this.isBlazorConnected = false;
+                        alert('⚠️ You\'re offline\n\nCreating new events is only available when online.\n\nYou can still drag/resize existing events - they will sync when you\'re back online.');
+                    });
             },
             
             eventDrop: (info) => {
@@ -100,18 +201,38 @@ window.fullCalendarInterop = {
                 info.el.style.opacity = '0.6';
                 info.el.classList.add('event-saving');
                 
-                this.invokeDotNet(elementId, 'OnEventDrop', eventId, info.event.startStr, info.event.endStr, info.event.allDay)
+                console.log(`🎯 Event ${eventId} dropped - checking connection...`);
+                
+                // Check if Blazor circuit is connected
+                const isConnected = this.checkBlazorConnection();
+                console.log(`� Blazor circuit connected: ${isConnected}`);
+                
+                if (!isConnected) {
+                    // Circuit disconnected - go straight to offline mode
+                    console.log('⚠️ Circuit disconnected - using offline mode directly');
+                    this.handleOfflineEventDrop(info, eventId, elementId);
+                    return;
+                }
+                
+                // Try Blazor save with timeout protection
+                console.log(`📤 Attempting Blazor save...`);
+                const savePromise = this.invokeDotNet(elementId, 'OnEventDrop', eventId, info.event.startStr, info.event.endStr, info.event.allDay);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Blazor call timeout - likely offline')), 500)
+                );
+                
+                Promise.race([savePromise, timeoutPromise])
                     .then(() => {
+                        console.log(`✅ Event ${eventId} saved via Blazor successfully`);
                         info.el.style.opacity = '1';
                         info.el.classList.remove('event-saving');
                         info.el.classList.add('event-saved');
                         setTimeout(() => info.el.classList.remove('event-saved'), 1000);
                     })
-                    .catch((err) => {
-                        console.error('Error saving event:', err);
-                        info.el.style.opacity = '1';
-                        info.el.classList.remove('event-saving');
-                        this.revertEvent(elementId, eventId);
+                    .catch(async (err) => {
+                        console.log(`❌ Blazor save failed - switching to offline mode`);
+                        this.isBlazorConnected = false; // Mark circuit as disconnected
+                        this.handleOfflineEventDrop(info, eventId, elementId);
                     });
             },
             
@@ -135,11 +256,83 @@ window.fullCalendarInterop = {
                         info.el.classList.add('event-saved');
                         setTimeout(() => info.el.classList.remove('event-saved'), 1000);
                     })
-                    .catch((err) => {
-                        console.error('Error resizing event:', err);
-                        info.el.style.opacity = '1';
-                        info.el.classList.remove('event-saving');
-                        this.revertEvent(elementId, eventId);
+                    .catch(async (err) => {
+                        console.log(`❌ Blazor resize failed for event ${eventId}`);
+                        console.log(`🔍 Error:`, err);
+                        
+                        // Check if error is due to connection loss
+                        const errorMessage = err?.message || String(err) || '';
+                        const isOfflineError = errorMessage.includes('not in the \'Connected\' State') ||
+                            errorMessage.includes('Cannot send data') ||
+                            errorMessage.includes('connection') ||
+                            errorMessage.includes('disconnect');
+                        
+                        if (isOfflineError) {
+                            console.log('⚠️ Offline mode - saving event resize locally');
+                            
+                            // Save directly to IndexedDB
+                            try {
+                                await window.indexedDBManager.updateEventDates(
+                                    eventId, 
+                                    info.event.startStr, 
+                                    info.event.endStr, 
+                                    info.event.allDay
+                                );
+                                
+                                // Queue the operation for sync with COMPLETE event data
+                                const token = localStorage.getItem('auth_token');
+                                if (token && window.indexedDBManager) {
+                                    // Get full event data from IndexedDB
+                                    const fullEvent = await window.indexedDBManager.getEvent(eventId);
+                                    
+                                    if (fullEvent) {
+                                        // Convert date strings to ISO 8601 datetime format for API
+                                        const startDate = info.event.start ? info.event.start.toISOString() : info.event.startStr;
+                                        const endDate = info.event.end ? info.event.end.toISOString() : info.event.endStr;
+                                        
+                                        console.log('📅 Queueing resize sync with dates:', { startDate, endDate, isAllDay: info.event.allDay });
+                                        
+                                        await window.indexedDBManager.savePendingOperation({
+                                            type: 'PUT',
+                                            endpoint: `/api/events/${eventId}`,
+                                            data: {
+                                                title: fullEvent.title,
+                                                description: fullEvent.description || '',
+                                                startDate: startDate,
+                                                endDate: endDate,
+                                                location: fullEvent.location || '',
+                                                isAllDay: info.event.allDay,
+                                                color: fullEvent.color || '#3788d8',
+                                                categoryId: fullEvent.categoryId || null,
+                                                status: fullEvent.status || 'Pending',
+                                                eventType: fullEvent.eventType || 'Other',
+                                                isPublic: fullEvent.isPublic || false
+                                            },
+                                            token: token,
+                                            timestamp: new Date().toISOString()
+                                        });
+                                    }
+                                }
+                                
+                                info.el.style.opacity = '1';
+                                info.el.classList.remove('event-saving');
+                                info.el.classList.add('event-saved');
+                                info.el.title = 'Saved offline - will sync when online';
+                                setTimeout(() => info.el.classList.remove('event-saved'), 1000);
+                                
+                                console.log('✅ Event resize saved offline, will sync when connection restored');
+                            } catch (offlineErr) {
+                                console.error('Failed to save offline:', offlineErr);
+                                info.el.style.opacity = '1';
+                                info.el.classList.remove('event-saving');
+                                this.revertEvent(elementId, eventId);
+                            }
+                        } else {
+                            console.error('Error resizing event:', err);
+                            info.el.style.opacity = '1';
+                            info.el.classList.remove('event-saving');
+                            this.revertEvent(elementId, eventId);
+                        }
                     });
             },
 
@@ -171,11 +364,87 @@ window.fullCalendarInterop = {
             console.error(`[${elementId}] DotNet helper not available`);
             return Promise.reject('DotNet helper not available');
         }
+        
         return helper.invokeMethodAsync(methodName, ...args)
             .catch(err => {
-                console.error(`[${elementId}] Error calling ${methodName}:`, err);
+                // Log connection errors gracefully - but let offline operations through
+                if (err.message && err.message.includes('not in the \'Connected\' State')) {
+                    console.warn(`[${elementId}] ⚠️ ${methodName} failed - Connection error (will retry via sync)`);
+                } else {
+                    console.error(`[${elementId}] Error calling ${methodName}:`, err);
+                }
                 throw err;
             });
+    },
+
+    // Handle offline event drop (pure JavaScript, no Blazor needed)
+    handleOfflineEventDrop: async function(info, eventId, elementId) {
+        console.log('💾 Saving event change offline...');
+        
+        try {
+            // Update event dates in IndexedDB
+            await window.indexedDBManager.updateEventDates(
+                eventId, 
+                info.event.startStr, 
+                info.event.endStr, 
+                info.event.allDay
+            );
+            
+            // Queue the operation for sync with COMPLETE event data
+            const token = localStorage.getItem('auth_token');
+            if (token && window.indexedDBManager) {
+                // Get full event data from IndexedDB
+                const fullEvent = await window.indexedDBManager.getEvent(eventId);
+                
+                if (fullEvent) {
+                    // Convert date strings to ISO 8601 datetime format for API
+                    const startDate = info.event.start ? info.event.start.toISOString() : info.event.startStr;
+                    const endDate = info.event.end ? info.event.end.toISOString() : info.event.endStr;
+                    
+                    console.log('📅 Queueing sync operation:', { 
+                        eventId, 
+                        title: fullEvent.title,
+                        startDate, 
+                        endDate, 
+                        isAllDay: info.event.allDay 
+                    });
+                    
+                    await window.indexedDBManager.savePendingOperation({
+                        type: 'PUT',
+                        endpoint: `/api/events/${eventId}`,
+                        data: {
+                            title: fullEvent.title,
+                            description: fullEvent.description || '',
+                            startDate: startDate,
+                            endDate: endDate,
+                            location: fullEvent.location || '',
+                            isAllDay: info.event.allDay,
+                            color: fullEvent.color || '#3788d8',
+                            categoryId: fullEvent.categoryId || null,
+                            status: fullEvent.status || 'Pending',
+                            eventType: fullEvent.eventType || 'Other',
+                            isPublic: fullEvent.isPublic || false
+                        },
+                        token: token,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+            
+            // Update UI
+            info.el.style.opacity = '1';
+            info.el.classList.remove('event-saving');
+            info.el.classList.add('event-saved');
+            info.el.title = 'Saved offline - will sync when online';
+            setTimeout(() => info.el.classList.remove('event-saved'), 1000);
+            
+            console.log('✅ Event saved offline successfully, queued for sync');
+        } catch (offlineErr) {
+            console.error('❌ Failed to save offline:', offlineErr);
+            info.el.style.opacity = '1';
+            info.el.classList.remove('event-saving');
+            this.revertEvent(elementId, eventId);
+        }
     },
 
     cacheEventState: function(eventId, oldEvent) {

@@ -9,25 +9,43 @@
 
 console.log('🚀 [SignalR] Reconnection handler script loading...');
 
-// Blazor Server Reconnection UI Handler
-setTimeout(() => {
-    console.log('🔍 [SignalR] Checking for modal and Blazor...');
+// Clean up reconnection query parameter if present (from previous offline reconnect)
+if (window.location.search.includes('_reconnect=')) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('_reconnect');
+    // Use replaceState to clean URL without reloading
+    window.history.replaceState({}, document.title, url.toString());
+    console.log('🧹 [SignalR] Cleaned up reconnection parameter from URL');
+}
+
+// Function to wait for Blazor to be ready
+function waitForBlazor(callback, maxAttempts = 100, attempt = 1) {
+    console.log(`🔍 [SignalR] Checking for Blazor (attempt ${attempt}/${maxAttempts})...`);
     
     const modal = document.getElementById('components-reconnect-modal');
     
     if (!modal) {
-        console.error('❌ [SignalR] Reconnection modal not found!');
+        if (attempt < maxAttempts) {
+            setTimeout(() => waitForBlazor(callback, maxAttempts, attempt + 1), 100);
+        } else {
+            console.error('❌ [SignalR] Reconnection modal not found after max attempts!');
+        }
         return;
     }
     
-    console.log('✅ [SignalR] Modal found');
-    
-    if (!window.Blazor || !window.Blazor.defaultReconnectionHandler) {
-        console.error('❌ [SignalR] Blazor.defaultReconnectionHandler not available!');
-        return;
+    if (window.Blazor && window.Blazor.defaultReconnectionHandler) {
+        console.log('✅ [SignalR] Blazor.defaultReconnectionHandler found');
+        console.log('✅ [SignalR] Modal found');
+        callback(modal);
+    } else if (attempt < maxAttempts) {
+        setTimeout(() => waitForBlazor(callback, maxAttempts, attempt + 1), 100);
+    } else {
+        console.warn('⚠️ [SignalR] Blazor.defaultReconnectionHandler not available after max attempts - app may work in degraded mode');
     }
-    
-    console.log('✅ [SignalR] Blazor.defaultReconnectionHandler found');
+}
+
+// Blazor Server Reconnection UI Handler
+waitForBlazor((modal) => {
     
     const handler = window.Blazor.defaultReconnectionHandler;
     const origDown = handler.onConnectionDown;
@@ -35,11 +53,21 @@ setTimeout(() => {
     let checkServerInterval;
     
     // ═══════════════════════════════════════════════════════════════
-    // CONNECTION DOWN HANDLER - WRAP BLAZOR'S DEFAULT
+    // CONNECTION DOWN HANDLER - COMPLETELY OVERRIDE BLAZOR'S DEFAULT
     // ═══════════════════════════════════════════════════════════════
     handler.onConnectionDown = function() {
-        console.log('🔴 [SignalR] Connection lost - starting active polling');
-        modal.className = 'components-reconnect-show';
+        console.log('🔴 [SignalR] Connection lost - enabling offline mode');
+        
+        // Don't show the blocking modal - app works offline!
+        modal.className = 'components-reconnect-hide';
+        
+        console.log('💡 [SignalR] App continues to work offline - polling silently in background');
+        
+        // Mark FullCalendar as disconnected so it uses pure JS mode
+        if (window.fullCalendarInterop) {
+            window.fullCalendarInterop.isBlazorConnected = false;
+            console.log('📅 [SignalR] FullCalendar switched to offline mode');
+        }
         
         // Check if server is back every 2 seconds
         checkServerInterval = setInterval(async () => {
@@ -47,9 +75,12 @@ setTimeout(() => {
             try {
                 const response = await fetch('/');
                 if (response.ok) {
-                    console.log('🟢 [SignalR] Server is back! Reloading page...');
+                    console.log('🟢 [SignalR] Server is back! Reloading page to restore connection...');
                     clearInterval(checkServerInterval);
-                    location.reload();
+                    // Force a hard reload with timestamp to clear cached state
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('_reconnect', Date.now().toString());
+                    window.location.href = url.toString();
                 }
             } catch (e) {
                 console.log('❌ [SignalR] Server still down, will retry...');
@@ -57,24 +88,29 @@ setTimeout(() => {
             }
         }, 2000);
         
-        // Call Blazor's original handler
-        if (origDown) origDown.call(handler);
+        // DON'T call Blazor's original handler - we're handling everything ourselves!
+        // This prevents Blazor from showing its reconnection UI or breaking the page
     };
     
     // ═══════════════════════════════════════════════════════════════
-    // CONNECTION UP HANDLER - WRAP BLAZOR'S DEFAULT
+    // CONNECTION UP HANDLER - COMPLETELY OVERRIDE BLAZOR'S DEFAULT
     // ═══════════════════════════════════════════════════════════════
     handler.onConnectionUp = function() {
-        console.log('🟢 [SignalR] Connection restored!');
+        console.log('🟢 [SignalR] Connection restored - reloading page to restore clean state');
         clearInterval(checkServerInterval);
-        modal.className = 'components-reconnect-hide';
         
-        // Call Blazor's original handler
-        if (origUp) origUp.call(handler);
+        // Force a hard reload to clear all cached Blazor state
+        // This avoids "The list of component operations is not valid" errors
+        // Setting location.href with timestamp forces a fresh load
+        const url = new URL(window.location.href);
+        url.searchParams.set('_reconnect', Date.now().toString());
+        window.location.href = url.toString();
+        
+        // DON'T call Blazor's original handler - we're handling everything ourselves!
     };
     
     console.log('✅ [SignalR] Reconnection handler installed successfully!');
     console.log('🎯 [SignalR] Will poll server every 2 seconds when connection is lost');
-}, 1000);
+});
 
 console.log('✅ [SignalR] Reconnection handler script loaded');

@@ -158,6 +158,45 @@ window.indexedDBManager = (function () {
         });
     }
 
+    // Update event dates (for drag and drop offline)
+    async function updateEventDates(eventId, startDate, endDate, allDay) {
+        const database = await ensureDB();
+        return new Promise(async (resolve, reject) => {
+            try {
+                // First, get the existing event
+                const event = await getEvent(eventId);
+                if (!event) {
+                    reject(new Error(`Event ${eventId} not found`));
+                    return;
+                }
+
+                // Update the dates
+                event.startDate = startDate;
+                event.endDate = endDate;
+                event.isAllDay = allDay;
+                event.lastModified = new Date().toISOString();
+                event.syncStatus = 'pending';
+
+                // Save the updated event
+                const transaction = database.transaction([STORES.EVENTS], 'readwrite');
+                const store = transaction.objectStore(STORES.EVENTS);
+                const request = store.put(event);
+
+                request.onsuccess = () => {
+                    console.log('[IndexedDB] Event dates updated:', eventId);
+                    resolve(event);
+                };
+
+                request.onerror = () => {
+                    console.error('[IndexedDB] Error updating event dates:', request.error);
+                    reject(request.error);
+                };
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
     // Save a pending operation
     async function savePendingOperation(operation) {
         const database = await ensureDB();
@@ -325,6 +364,7 @@ window.indexedDBManager = (function () {
         getAllEvents,
         getEvent,
         deleteEvent,
+        updateEventDates,
         savePendingOperation,
         getPendingOperations,
         deletePendingOperation,

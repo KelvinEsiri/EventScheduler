@@ -35,6 +35,14 @@ public class ConnectivityService : IAsyncDisposable
             _logger.LogInformation("Connectivity service initialized. Status: {Status}", 
                 _isOnline ? "ONLINE" : "OFFLINE");
         }
+        catch (JSException ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize connectivity service - will retry after render");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("statically rendered"))
+        {
+            _logger.LogWarning("Connectivity service initialization deferred - component is prerendering");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize connectivity service");
@@ -92,9 +100,20 @@ public class ConnectivityService : IAsyncDisposable
             await _jsRuntime.InvokeVoidAsync("connectivityManager.dispose");
             _dotNetReference?.Dispose();
         }
+        catch (JSDisconnectedException)
+        {
+            // Circuit already disconnected, nothing to dispose in JavaScript
+            _dotNetReference?.Dispose();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("statically rendered") || ex.Message.Contains("disconnected"))
+        {
+            // Component being disposed during prerendering or after disconnect
+            _dotNetReference?.Dispose();
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error disposing connectivity service");
+            _logger.LogWarning(ex, "Error disposing connectivity service - continuing cleanup");
+            _dotNetReference?.Dispose();
         }
     }
 }

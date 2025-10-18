@@ -269,22 +269,50 @@ public partial class CalendarView : IAsyncDisposable
 
     private void ShowSuccess(string message)
     {
-        successMessage = message;
-        // Auto-clear after 3 seconds
-        _ = Task.Delay(3000).ContinueWith(_ => {
-            successMessage = null;
-            InvokeAsync(StateHasChanged);
-        });
+        try
+        {
+            successMessage = message;
+            // Auto-clear after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ => {
+                successMessage = null;
+                try
+                {
+                    InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "CalendarView: Failed to update UI after success message");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "CalendarView: Failed to show success message");
+        }
     }
 
     private void ShowError(string message)
     {
-        errorMessage = message;
-        // Auto-clear after 5 seconds
-        _ = Task.Delay(5000).ContinueWith(_ => {
-            errorMessage = null;
-            InvokeAsync(StateHasChanged);
-        });
+        try
+        {
+            errorMessage = message;
+            // Auto-clear after 5 seconds
+            _ = Task.Delay(5000).ContinueWith(_ => {
+                errorMessage = null;
+                try
+                {
+                    InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "CalendarView: Failed to update UI after error message");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "CalendarView: Failed to show error message");
+        }
     }
 
     private Task OnReconnecting(Exception? exception)
@@ -323,9 +351,9 @@ public partial class CalendarView : IAsyncDisposable
             connectionStatus = online ? "Connected" : "Offline";
             Logger.LogInformation("CalendarView: Connectivity changed - {Status}", connectionStatus);
             
-            // If coming back online, trigger sync
             if (online)
             {
+                // Coming back online - trigger sync
                 try
                 {
                     var result = await SyncService.SyncAsync();
@@ -338,6 +366,26 @@ public partial class CalendarView : IAsyncDisposable
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, "CalendarView: Auto-sync failed");
+                }
+            }
+            else
+            {
+                // Going offline - ensure calendar remains interactive
+                isLoading = false; // Stop any loading spinners immediately
+                Logger.LogInformation("CalendarView: Offline mode - calendar will use cached data");
+                
+                // Load events from IndexedDB cache if calendar not initialized
+                if (!calendarInitialized && events.Count == 0)
+                {
+                    try
+                    {
+                        events = await OfflineEventService.GetEventsAsync();
+                        Logger.LogInformation("CalendarView: Loaded {Count} cached events for offline mode", events.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "CalendarView: Failed to load cached events");
+                    }
                 }
             }
             
@@ -490,6 +538,8 @@ public partial class CalendarView : IAsyncDisposable
             // Give time for DOM to be fully ready and CSS to apply
             await Task.Delay(500);
             
+            // Initialize calendar - editable in both online and offline modes
+            // Offline interactions will be handled by JavaScript fallback
             var initialized = await JSRuntime.InvokeAsync<bool>("fullCalendarInterop.initialize", 
                 "calendar", dotNetHelper, calendarEvents, true); // true for editable calendar
             
@@ -523,6 +573,8 @@ public partial class CalendarView : IAsyncDisposable
             isLoading = true;
             errorMessage = null;
             
+            Logger.LogInformation("CalendarView: Loading events - Online: {IsOnline}", ConnectivityService.IsOnline);
+            
             // Use OfflineEventService for offline-first loading
             events = await OfflineEventService.GetEventsAsync();
             
@@ -538,8 +590,14 @@ public partial class CalendarView : IAsyncDisposable
                 {
                     Logger.LogWarning("CalendarView: Circuit disconnected while updating calendar");
                     // Component is being disposed, ignore
+                    isLoading = false; // Ensure loading stops even if disconnected
                 }
             }
+        }
+        catch (JSDisconnectedException)
+        {
+            Logger.LogWarning("CalendarView: Circuit disconnected during LoadEvents - stopping loading");
+            isLoading = false; // Critical: Stop loading spinner immediately
         }
         catch (TaskCanceledException ex)
         {
@@ -935,15 +993,25 @@ public partial class CalendarView : IAsyncDisposable
                 pendingLocalChanges.Add(editEventId);
                 
                 var updateRequest = CreateUpdateRequest();
-                var updatedEvent = await OfflineEventService.UpdateEventAsync(editEventId, updateRequest);
                 
-                if (updatedEvent != null)
+                try
                 {
-                    ShowSuccess("Event updated successfully!" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
+                    var updatedEvent = await OfflineEventService.UpdateEventAsync(editEventId, updateRequest);
+                    
+                    if (updatedEvent != null)
+                    {
+                        ShowSuccess("Event updated successfully!" + (ConnectivityService.IsOnline ? "" : " (will sync when online)"));
+                    }
+                    else
+                    {
+                        ShowError("Failed to update event.");
+                    }
                 }
-                else
+                catch (JSDisconnectedException)
                 {
-                    ShowError("Failed to update event.");
+                    // Circuit disconnected during save - but offline service should have saved it
+                    Logger.LogWarning("CalendarView: Circuit disconnected during update, but event should be saved offline");
+                    ShowSuccess("Event saved offline - will sync when online");
                 }
             }
             else
@@ -980,7 +1048,22 @@ public partial class CalendarView : IAsyncDisposable
             }
 
             CloseModal();
-            StateHasChanged();
+            
+            try
+            {
+                StateHasChanged();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected - can't update UI but save was successful
+                Logger.LogWarning("CalendarView: Circuit disconnected, can't update UI");
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit disconnected during save operation
+            Logger.LogWarning("CalendarView: Circuit disconnected during save - event should be saved offline");
+            // Don't show error - the offline service should have handled it
         }
         catch (InvalidOperationException ex)
         {

@@ -115,6 +115,7 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins(
                     "http://localhost:5292", 
+                    "http://127.0.0.1:5292",  // Added for CORS compatibility
                     "https://localhost:7248",
                     "http://localhost:5006",
                     "https://localhost:7249")
