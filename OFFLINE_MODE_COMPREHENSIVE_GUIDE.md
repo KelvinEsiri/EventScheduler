@@ -14,14 +14,17 @@
 
 ## Overview
 
-The EventScheduler application supports **full offline functionality** for viewing and modifying calendar events. When offline, all changes are saved locally in IndexedDB and automatically synchronized when the connection is restored.
+The EventScheduler application supports **full offline functionality** for viewing and modifying calendar events across both Calendar View and Event List pages. When offline, all changes are saved locally in IndexedDB and automatically synchronized when the connection is restored.
 
 ### Key Features
 - ✅ **Offline-first data loading** - Always loads from cache first
 - ✅ **Real-time offline detection** - 500ms response time
-- ✅ **Drag & drop offline** - Move events without connection
+- ✅ **Drag & drop offline** - Move events without connection (Calendar View)
+- ✅ **Event List offline support** - Browse, filter, edit, and delete events offline
 - ✅ **Automatic sync** - Queues operations and syncs when online
 - ✅ **Conflict resolution** - Last-write-wins strategy
+- ✅ **Offline-aware navigation** - Disabled links for online-only pages
+- ✅ **Visual status indicator** - Top-right corner indicator showing Online/Offline/Syncing state
 - ✅ **Progressive Web App** - Installable with service worker
 
 ---
@@ -32,7 +35,8 @@ The EventScheduler application supports **full offline functionality** for viewi
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      User Interface                          │
-│  (Blazor Components - CalendarView.razor)                   │
+│  CalendarView.razor + CalendarList.razor (Event List)       │
+│  NavMenu (Offline-Aware) + OfflineIndicator (Status)        │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
@@ -294,6 +298,122 @@ catch (Exception ex)
     ShowError("Failed to update event."); // User sees error even though save worked!
 }
 ```
+
+---
+
+## Offline-Enabled Pages
+
+### Calendar View (CalendarView.razor)
+**Offline Support**: ✅ Full Support
+
+**Features**:
+- View all cached events in calendar format
+- Drag & drop events to reschedule
+- Click dates to view/create events
+- Click events to view details and edit
+- All changes queued for sync when online
+
+**Implementation**: Uses FullCalendar with JavaScript offline fallback handlers
+
+---
+
+### Event List (CalendarList.razor)
+**Offline Support**: ✅ Full Support (New!)
+
+**Features**:
+- View all events in filterable list format
+- Filter by event type, status, and search query
+- Toggle between Active and History tabs
+- Create, edit, and delete events offline
+- All changes automatically cached in IndexedDB
+- Seamless sync when connectivity restored
+
+**Implementation**: Uses OfflineEventService for all CRUD operations
+
+**Key Methods**:
+```csharp
+// Load events with offline-first approach
+private async Task LoadEvents()
+{
+    events = await OfflineEventService.GetEventsAsync();
+    FilterEvents();
+}
+
+// Save event (create/update) offline
+private async Task SaveEvent()
+{
+    if (isEditMode)
+        await OfflineEventService.UpdateEventAsync(editEventId, updateRequest);
+    else
+        await OfflineEventService.CreateEventAsync(eventRequest);
+}
+
+// Delete event offline
+private async Task DeleteEvent(int id)
+{
+    await OfflineEventService.DeleteEventAsync(id);
+    await LoadEvents();
+}
+```
+
+---
+
+### Navigation Menu (NavMenu.razor)
+**Offline Support**: ✅ Offline-Aware Navigation
+
+**Features**:
+- Automatically disables online-only pages when offline
+- Shows offline badge (🚫) on disabled links
+- Shows checkmark badge (✓) on offline-capable pages when offline
+- Updates user status indicator (Online/Offline)
+
+**Pages Always Available**:
+- ✅ Calendar View
+- ✅ Event List
+
+**Pages Disabled When Offline**:
+- ❌ Home
+- ❌ Public Events
+- ❌ Login
+- ❌ Register
+- ❌ Logout
+
+**Implementation**:
+```csharp
+// Monitor connectivity
+protected override async Task OnInitializedAsync()
+{
+    await ConnectivityService.InitializeAsync();
+    isOnline = ConnectivityService.IsOnline;
+    ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+}
+
+// Update UI when connectivity changes
+private void OnConnectivityChanged(object? sender, bool online)
+{
+    isOnline = online;
+    InvokeAsync(StateHasChanged);
+}
+```
+
+---
+
+### Offline Status Indicator (OfflineIndicator.razor)
+**Location**: Top-right corner of all pages
+
+**States**:
+- 🟢 **Online** - Hidden (default state)
+- 🟡 **Offline** - Yellow badge showing "Offline Mode" with pending operation count
+- 🔵 **Syncing** - Blue badge with spinner showing "Syncing..."
+- ✅ **Synced** - Green badge showing "Synced" (3 seconds after successful sync)
+
+**Features**:
+- Non-intrusive corner position
+- Animated entrance/exit
+- Shows pending operations count when offline
+- Pulse animation on offline state for visibility
+
+**Implementation**: Subscribes to ConnectivityService and SyncService events
 
 ---
 
@@ -707,6 +827,16 @@ console.log('Old operations cleared');
 
 ## Version History
 
+- **v16** (2025-10-18): Extended offline support to Event List page (CalendarList.razor)
+  - Added offline-first data loading for event list view
+  - Integrated ConnectivityService and SyncService subscriptions
+  - Enabled CRUD operations (Create, Read, Update, Delete) while offline
+  - Added reconnection spinner for offline state
+  - Implemented offline-aware navigation menu
+  - Disabled non-offline pages (Home, Public Events, Login, Register, Logout) when offline
+  - Enhanced OfflineIndicator with top-right corner positioning
+  - Added visual badges for offline/online-capable pages
+  - Updated user status to reflect Online/Offline state
 - **v15** (2025-10-18): Auto-restore online state, multi-layer connection check
 - **v14** (2025-10-18): Offline fallbacks for all click handlers
 - **v13** (2025-10-18): Fast offline detection (500ms timeout)
@@ -791,5 +921,5 @@ For questions, issues, or contributions related to offline mode:
 ---
 
 **Last Updated**: October 18, 2025  
-**Version**: 15.0  
+**Version**: 16.0  
 **Author**: Development Team
