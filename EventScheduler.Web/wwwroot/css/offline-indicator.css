@@ -1,11 +1,10 @@
-/* Offline Indicator Styles */
+/* Offline Indicator Styles - Positioned in top-right corner */
 
 .offline-indicator {
     position: fixed;
-    top: 56px; /* Below navbar */
-    left: 0;
-    right: 0;
-    z-index: 1000;
+    top: 70px; /* Below navbar, accounting for navbar height */
+    right: 20px;
+    z-index: 1050; /* Above most content but below modals */
     pointer-events: none;
 }
 
@@ -15,58 +14,118 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 8px 16px;
+    gap: 8px;
+    padding: 10px 16px;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
+    border-radius: 8px;
     pointer-events: auto;
-    animation: slideDown 0.3s ease-out;
+    animation: slideInRight 0.3s ease-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 140px;
+    backdrop-filter: blur(8px);
 }
 
 .offline-banner {
-    background-color: #ffc107;
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
     color: #000;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 2px solid rgba(255, 193, 7, 0.3);
 }
 
 .syncing-banner {
-    background-color: #0d6efd;
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
     color: #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 2px solid rgba(13, 110, 253, 0.3);
 }
 
 .synced-banner {
-    background-color: #28a745;
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
     color: #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 2px solid rgba(40, 167, 69, 0.3);
 }
 
 .offline-banner i,
 .syncing-banner i,
 .synced-banner i {
-    margin-right: 8px;
+    font-size: 1rem;
 }
 
-@keyframes slideDown {
+/* Spinner animation for syncing state */
+.syncing-banner .spinner-border {
+    width: 1rem;
+    height: 1rem;
+    border-width: 2px;
+}
+
+/* Slide in from right animation */
+@keyframes slideInRight {
     from {
-        transform: translateY(-100%);
+        transform: translateX(120%);
         opacity: 0;
     }
     to {
-        transform: translateY(0);
+        transform: translateX(0);
         opacity: 1;
     }
 }
 
-/* Adjust for mobile */
+/* Slide out to right animation (for when indicator disappears) */
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+/* Pulse animation for offline state */
+.offline-banner {
+    animation: slideInRight 0.3s ease-out, pulse 2s infinite 0.5s;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    50% {
+        box-shadow: 0 4px 20px rgba(255, 193, 7, 0.4);
+    }
+}
+
+/* Adjust for mobile devices */
 @media (max-width: 768px) {
     .offline-indicator {
-        top: 56px;
+        top: 60px;
+        right: 10px;
+        left: 10px;
+        display: flex;
+        justify-content: flex-end;
     }
     
     .offline-banner,
     .syncing-banner,
     .synced-banner {
         font-size: 0.75rem;
-        padding: 6px 12px;
+        padding: 8px 12px;
+        min-width: auto;
+        max-width: 160px;
     }
+}
+
+/* Adjust for sidebar layout (desktop) */
+@media (min-width: 768px) {
+    .offline-indicator {
+        right: 30px;
+    }
+}
+
+/* Additional styling for badge count */
+.offline-banner .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-weight: 700;
 }

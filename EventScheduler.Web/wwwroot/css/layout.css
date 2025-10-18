@@ -389,3 +389,44 @@ main {
         display: inline;
     }
 }
+
+/* ---------- Offline Navigation Styles ---------- */
+
+/* Disabled nav links (when offline) */
+.nav-link-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    color: #9ca3af !important;
+    position: relative;
+}
+
+.nav-link-disabled:hover {
+    background-color: transparent !important;
+}
+
+/* Offline badge indicator */
+.offline-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: #fbbf24;
+    opacity: 0.8;
+}
+
+/* Online badge indicator (shown on offline-capable pages when offline) */
+.online-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: #10b981;
+}
+
+/* Adjust user status color when offline */
+.nav-user-status::before {
+    transition: background-color 0.3s ease;
+}
+
+/* Update user status indicator based on offline state */
+.nav-user-section[data-offline="true"] .nav-user-status::before {
+    background: #fbbf24;
+    animation: none;
+}

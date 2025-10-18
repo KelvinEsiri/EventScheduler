@@ -44,8 +44,8 @@
                     <div class="spinner"></div>
                 </div>
                 <div class="loading-text">
-                    <h3>Loading Your Events</h3>
-                    <p>Getting everything ready for you...</p>
+                    <h3>@(isConnected ? "Loading Your Events" : "Attempting to reconnect to the server...")</h3>
+                    <p>@(isConnected ? "Getting everything ready for you..." : "Please wait while we restore your connection")</p>
                 </div>
             </div>
         }
